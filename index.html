@@ -1,0 +1,854 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Word Sprint</title>
+<meta name="description" content="4択クイズで英単語を高速に周回するアプリ">
+<meta name="theme-color" content="#4f46e5">
+<style>
+:root{--bg:#f6f7fb;--card:#fff;--text:#16181d;--muted:#6b7280;--line:#e5e7eb;--accent:#4f46e5;--accent-2:#eef2ff;--ok:#16a34a;--ok-bg:#dcfce7;--ng:#dc2626;--ng-bg:#fee2e2;--shadow:0 1px 2px rgba(0,0,0,.05),0 4px 16px rgba(0,0,0,.04)}
+@media (prefers-color-scheme:dark){:root{--bg:#0f1115;--card:#181b22;--text:#e8eaf0;--muted:#9aa1ad;--line:#2a2f3a;--accent:#818cf8;--accent-2:#23264a;--ok:#4ade80;--ok-bg:#12321f;--ng:#f87171;--ng-bg:#3a1717;--shadow:none}}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Hiragino Sans","Noto Sans JP",sans-serif;-webkit-tap-highlight-color:transparent}
+body{min-height:100dvh}
+[hidden]{display:none!important}
+.wrap{max-width:640px;margin:0 auto;padding:16px 16px calc(24px + env(safe-area-inset-bottom))}
+.hero{padding:16px 4px 12px}
+.hero h1{margin:0;font-size:28px;letter-spacing:-.02em}
+.hero h1 span{color:var(--accent)}
+.hero p{margin:4px 0 0;font-size:14px}
+.muted{color:var(--muted)}
+h2{font-size:18px;margin:0 0 8px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;box-shadow:var(--shadow);margin-bottom:12px}
+.row{display:flex;align-items:center;justify-content:space-between;gap:8px 12px;padding:7px 0;flex-wrap:wrap}
+.row>label{font-size:14px;color:var(--muted);font-weight:600}
+.seg{display:inline-flex;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:3px;gap:2px}
+.seg button{border:0;background:transparent;color:var(--text);font:inherit;font-size:14px;padding:7px 11px;border-radius:7px;cursor:pointer;touch-action:manipulation}
+.seg button.on{background:var(--card);color:var(--accent);font-weight:700;box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.seg button:disabled{opacity:.4;cursor:not-allowed}
+.btn{font:inherit;border-radius:12px;border:1px solid var(--line);background:var(--card);color:var(--text);padding:11px 16px;cursor:pointer;font-weight:600;touch-action:manipulation}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.big{width:100%;margin-top:12px;padding:15px;font-size:17px}
+.btn.ghost{background:transparent;color:var(--muted)}
+.hint{font-size:12px;color:var(--muted);text-align:center;margin:10px 0 0}
+.tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;text-align:center}
+.tiles b{display:block;font-size:22px;font-variant-numeric:tabular-nums}
+.tiles small{color:var(--muted);font-size:12px}
+.links{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+.sec-title{margin:4px 4px 8px;font-size:14px;font-weight:700;color:var(--muted)}
+.decks{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:12px}
+@media(min-width:560px){.decks{grid-template-columns:repeat(3,1fr)}}
+.deck{position:relative;text-align:left;font:inherit;color:var(--text);background:var(--card);border:1.5px solid var(--line);border-radius:14px;padding:12px 12px 10px;cursor:pointer;display:flex;flex-direction:column;gap:4px;min-height:104px;touch-action:manipulation;transition:border-color .12s,box-shadow .12s}
+.deck.on{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-2)}
+.deck .dn{font-weight:700;font-size:15px;padding-right:24px}
+.deck .dd{font-size:12px;color:var(--muted);line-height:1.4;flex:1}
+.deck .dm{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.deck .bar{height:4px;background:var(--line);border-radius:99px;overflow:hidden}
+.deck .bar>i{display:block;height:100%;background:var(--accent)}
+.deck .edit{position:absolute;top:6px;right:6px;border:0;background:transparent;color:var(--muted);font-size:15px;padding:4px 6px;cursor:pointer}
+.deck.new{border-style:dashed;align-items:center;justify-content:center;color:var(--muted);font-weight:600}
+.deck.off{opacity:.55}
+input[type=text]{width:100%;font:inherit;font-size:16px;padding:10px 12px;border-radius:12px;border:1px solid var(--line);background:var(--bg);color:var(--text);margin-bottom:6px}
+/* quiz */
+.qtop{display:flex;align-items:center;gap:12px;padding:4px 0 12px}
+.icon{border:0;background:transparent;color:var(--muted);font-size:20px;cursor:pointer;padding:4px 8px;line-height:1}
+.progress{flex:1;height:8px;background:var(--line);border-radius:99px;overflow:hidden}
+.progress>div{height:100%;background:var(--accent);width:0;transition:width .25s}
+#counter{font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums;min-width:52px;text-align:right}
+.meta{display:flex;justify-content:space-between;font-size:13px;color:var(--muted);height:20px;margin-bottom:6px}
+.qcard{position:relative;text-align:center;padding:28px 16px 26px;min-height:170px;display:flex;flex-direction:column;justify-content:center;align-items:center;overflow:hidden;transition:border-color .15s,background .15s}
+.qcard.ok{border-color:var(--ok);background:var(--ok-bg)}
+.qcard.ng{border-color:var(--ng);background:var(--ng-bg)}
+.qdir{font-size:12px;color:var(--muted);margin-bottom:8px}
+.prompt{font-weight:700;line-height:1.25;word-break:break-word}
+.prompt.en{font-size:clamp(32px,9vw,46px);letter-spacing:-.01em}
+.prompt.ja{font-size:clamp(22px,6vw,30px)}
+.pos{margin-top:10px;font-size:12px;color:var(--muted);border:1px solid var(--line);border-radius:99px;padding:2px 10px}
+.pos:empty{display:none}
+.speak{position:absolute;top:8px;right:8px;border:0;background:transparent;font-size:20px;cursor:pointer;padding:6px;opacity:.75}
+.timer{position:absolute;left:0;right:0;bottom:0;height:4px}
+.timer>div{height:100%;background:var(--accent);transform-origin:left;transform:scaleX(1)}
+.timer>div.low{background:var(--ng)}
+.choices{display:grid;gap:10px}
+@media(min-width:560px){.choices{grid-template-columns:1fr 1fr}}
+.choice{display:flex;align-items:center;gap:12px;text-align:left;width:100%;min-height:60px;padding:12px 14px;border-radius:14px;border:1.5px solid var(--line);background:var(--card);color:var(--text);font:inherit;font-size:17px;cursor:pointer;touch-action:manipulation;transition:transform .06s,background .12s,border-color .12s,opacity .12s}
+.choice:active{transform:scale(.98)}
+@media(hover:hover){.choice:not(:disabled):hover{border-color:var(--accent)}}
+.choice:disabled{cursor:default;color:var(--text)}
+.num{flex:none;width:26px;height:26px;border-radius:8px;background:var(--accent-2);color:var(--accent);display:grid;place-items:center;font-size:13px;font-weight:700}
+.choice.ok{border-color:var(--ok);background:var(--ok-bg)}
+.choice.ok .num{background:var(--ok);color:#fff}
+.choice.ng{border-color:var(--ng);background:var(--ng-bg)}
+.choice.ng .num{background:var(--ng);color:#fff}
+.choice.dim{opacity:.4}
+.tap-next{text-align:center;color:var(--muted);font-size:13px;margin-top:14px}
+/* result */
+.big-score{font-size:44px;font-weight:800;text-align:center;margin:4px 0 12px;font-variant-numeric:tabular-nums}
+.list{list-style:none;padding:0;margin:0}
+.list li{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:10px 0;border-bottom:1px solid var(--line)}
+.list li:last-child{border:0}
+.list span{color:var(--muted);text-align:right}
+.actions{display:grid;gap:8px}
+textarea{width:100%;min-height:45vh;font:14px/1.6 ui-monospace,Menlo,monospace;padding:12px;border-radius:12px;border:1px solid var(--line);background:var(--bg);color:var(--text);resize:vertical}
+.edit-bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:10px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<section id="home">
+  <header class="hero">
+    <h1>Word <span>Sprint</span></h1>
+    <p class="muted">4択で英単語を高速周回。苦手な単語ほどよく出ます。</p>
+  </header>
+  <div class="sec-title">デッキを選ぶ</div>
+  <div class="decks" id="decks"></div>
+  <div class="card">
+    <div class="row"><label>出題</label>
+      <div class="seg" data-key="dir"><button data-val="e2j">英→日</button><button data-val="j2e">日→英</button><button data-val="mix">ミックス</button></div></div>
+    <div class="row"><label>問題数</label>
+      <div class="seg" data-key="count"><button data-val="10">10</button><button data-val="20">20</button><button data-val="50">50</button><button data-val="0">全部</button></div></div>
+    <div class="row"><label>制限時間</label>
+      <div class="seg" data-key="limit"><button data-val="0">なし</button><button data-val="5">5秒</button><button data-val="3">3秒</button></div></div>
+    <div class="row"><label>自動発音</label>
+      <div class="seg" data-key="speak"><button data-val="false">オフ</button><button data-val="true">オン</button></div></div>
+    <button id="startBtn" class="btn primary big">スタート</button>
+    <p class="hint">キーボード：1〜4で回答 ／ Enterで次へ ／ Escで中断</p>
+  </div>
+  <div class="card" id="homeStats"></div>
+  <div class="links">
+    <button class="btn ghost" id="resetBtn">学習記録をリセット</button>
+  </div>
+</section>
+
+<section id="quiz" hidden>
+  <div class="qtop">
+    <button class="icon" id="quitBtn" aria-label="中断">✕</button>
+    <div class="progress"><div id="prog"></div></div>
+    <span id="counter"></span>
+  </div>
+  <div class="meta"><span id="streak"></span><span id="score"></span></div>
+  <div class="card qcard" id="qcard">
+    <button class="speak" id="speakBtn" aria-label="発音">🔊</button>
+    <div class="qdir" id="qdir"></div>
+    <div class="prompt" id="prompt"></div>
+    <div class="pos" id="pos"></div>
+    <div class="timer" id="timer"><div id="timerBar"></div></div>
+  </div>
+  <div class="choices" id="choices"></div>
+  <p class="tap-next" id="tapNext" hidden>タップ / Enter で次へ</p>
+</section>
+
+<section id="result" hidden>
+  <div class="card">
+    <div class="big-score" id="rScore"></div>
+    <div class="tiles">
+      <div><b id="rAcc"></b><small>正答率</small></div>
+      <div><b id="rAvg"></b><small>平均 / 問</small></div>
+      <div><b id="rBest"></b><small>最高連続</small></div>
+    </div>
+  </div>
+  <div class="card" id="missedCard">
+    <h2>間違えた単語</h2>
+    <ul class="list" id="missedList"></ul>
+  </div>
+  <div class="actions">
+    <button class="btn primary big" id="retryMissed" style="margin-top:0">間違えた単語だけもう一度</button>
+    <button class="btn" id="againBtn">同じ設定でもう一度</button>
+    <button class="btn ghost" id="homeBtn">ホームへ</button>
+  </div>
+</section>
+
+<section id="editor" hidden>
+  <div class="card">
+    <h2 id="editTitle">新しいデッキ</h2>
+    <input type="text" id="deckName" placeholder="デッキ名（例：英検2級 単語帳）" maxlength="40">
+    <p class="muted" style="font-size:14px;margin:6px 0 4px">1行に1語、「英単語,意味」の形式で入力します。タブ区切りや「|」区切りも使えるので、Excel・スプレッドシートの2列をそのまま貼り付けられます。4語以上必要です。</p>
+    <div class="edit-bar">
+      <label class="btn">ファイル読込<input type="file" id="fileIn" accept=".csv,.tsv,.txt" hidden></label>
+      <button class="btn ghost" id="sampleBtn">例を挿入</button>
+      <button class="btn ghost" id="exportDeck">CSV書き出し</button>
+      <span class="muted" id="editCount" style="margin-left:auto;font-size:13px"></span>
+    </div>
+    <textarea id="customText" spellcheck="false" placeholder="apple,りんご&#10;borrow,借りる&#10;curious,好奇心の強い&#10;deliberate,意図的な"></textarea>
+    <div class="actions" style="margin-top:12px">
+      <button class="btn primary" id="saveCustom">保存</button>
+      <button class="btn ghost" id="cancelEdit">キャンセル</button>
+      <button class="btn ghost" id="deleteDeck" style="color:var(--ng)">このデッキを削除</button>
+    </div>
+  </div>
+</section>
+
+</div>
+<script>
+(() => {
+const RAW_BASIC = `family|n|家族
+friend|n|友達
+library|n|図書館
+hospital|n|病院
+station|n|駅
+morning|n|朝
+evening|n|夕方
+weather|n|天気
+season|n|季節
+country|n|国
+language|n|言語
+question|n|質問
+idea|n|考え、アイデア
+history|n|歴史
+science|n|科学
+picture|n|絵、写真
+breakfast|n|朝食
+vacation|n|休暇
+village|n|村
+river|n|川
+mountain|n|山
+island|n|島
+vegetable|n|野菜
+umbrella|n|傘
+future|n|未来
+begin|v|始める
+finish|v|終える
+arrive|v|到着する
+leave|v|出発する、去る
+remember|v|覚えている
+forget|v|忘れる
+borrow|v|借りる
+lend|v|貸す
+carry|v|運ぶ
+choose|v|選ぶ
+decide|v|決める
+explain|v|説明する
+travel|v|旅行する
+practice|v|練習する
+understand|v|理解する
+believe|v|信じる
+agree|v|賛成する
+worry|v|心配する
+wait|v|待つ
+build|v|建てる
+catch|v|捕まえる
+teach|v|教える
+sell|v|売る
+buy|v|買う
+win|v|勝つ
+lose|v|負ける、失う
+beautiful|adj|美しい
+difficult|adj|難しい
+easy|adj|簡単な
+important|adj|重要な
+famous|adj|有名な
+popular|adj|人気のある
+expensive|adj|高価な
+cheap|adj|安い
+busy|adj|忙しい
+hungry|adj|空腹の
+tired|adj|疲れた
+angry|adj|怒った
+different|adj|異なる
+careful|adj|注意深い
+dangerous|adj|危険な
+quiet|adj|静かな
+strong|adj|強い
+kind|adj|親切な
+young|adj|若い
+always|adv|いつも
+usually|adv|たいてい
+sometimes|adv|ときどき
+never|adv|決して〜ない
+often|adv|よく、しばしば
+already|adv|すでに
+again|adv|再び
+together|adv|一緒に
+soon|adv|すぐに
+slowly|adv|ゆっくりと`;
+
+const RAW_ADVANCED = `ambiguity|n|曖昧さ
+consensus|n|合意、総意
+discrepancy|n|食い違い、矛盾
+dilemma|n|板挟み、ジレンマ
+incentive|n|動機付け、誘因
+hypothesis|n|仮説
+scrutiny|n|精査
+catalyst|n|触媒、きっかけ
+paradox|n|逆説
+prerequisite|n|前提条件
+repercussion|n|（悪い）影響、反響
+skepticism|n|懐疑
+stance|n|立場、姿勢
+anomaly|n|異常、例外
+compromise|n|妥協
+alleviate|v|和らげる
+advocate|v|提唱する、擁護する
+compel|v|強いる
+contemplate|v|熟考する
+deteriorate|v|悪化する
+discern|v|見分ける
+endorse|v|支持する、承認する
+fabricate|v|でっち上げる
+hinder|v|妨げる
+infer|v|推論する
+refute|v|反論する、論破する
+undermine|v|損なう、弱体化させる
+procrastinate|v|先延ばしにする
+reconcile|v|和解させる、調和させる
+tolerate|v|我慢する、容認する
+outweigh|v|上回る
+renounce|v|放棄する
+arbitrary|adj|恣意的な、任意の
+conspicuous|adj|目立つ
+meticulous|adj|細心の、几帳面な
+obsolete|adj|時代遅れの
+plausible|adj|もっともらしい
+profound|adj|深遠な、重大な
+resilient|adj|回復力のある
+tedious|adj|退屈な、うんざりする
+versatile|adj|多才な、用途の広い
+imminent|adj|差し迫った
+indispensable|adj|不可欠な
+lucrative|adj|儲かる
+ubiquitous|adj|どこにでもある
+candid|adj|率直な
+frugal|adj|倹約な
+obscure|adj|不明瞭な、無名の
+inherently|adv|本質的に
+arguably|adv|ほぼ間違いなく
+predominantly|adv|主に
+invariably|adv|必ず、常に
+reluctantly|adv|しぶしぶ
+thereby|adv|それによって`;
+
+const RAW_IT = `dependency|n|依存関係
+deployment|n|デプロイ、展開
+latency|n|遅延、レイテンシ
+throughput|n|スループット、処理量
+bottleneck|n|ボトルネック、隘路
+redundancy|n|冗長性
+availability|n|可用性
+scalability|n|拡張性
+vulnerability|n|脆弱性
+authentication|n|認証
+authorization|n|認可
+encryption|n|暗号化
+credential|n|認証情報
+outage|n|サービス停止
+incident|n|インシデント、事象
+workaround|n|回避策
+root cause|n|根本原因
+rollback|n|ロールバック、切り戻し
+migration|n|移行
+configuration|n|設定、構成
+specification|n|仕様
+requirement|n|要件
+deliverable|n|成果物
+milestone|n|マイルストーン、節目
+backlog|n|未処理の作業、バックログ
+threshold|n|しきい値
+metric|n|指標
+granularity|n|粒度
+deprecate|v|非推奨にする
+provision|v|（リソースを）用意する
+propagate|v|伝播する
+mitigate|v|緩和する
+troubleshoot|v|問題の原因を調べて解決する
+reproduce|v|再現する
+isolate|v|切り分ける、隔離する
+escalate|v|上位に引き継ぐ、エスカレーションする
+refactor|v|リファクタリングする
+validate|v|妥当性を検証する
+terminate|v|終了させる
+initialize|v|初期化する
+invoke|v|呼び出す
+override|v|上書きする
+retrieve|v|取得する
+decommission|v|廃止する、退役させる
+consolidate|v|統合する、集約する
+enforce|v|強制する、適用する
+append|v|末尾に追加する
+idempotent|adj|冪等な
+asynchronous|adj|非同期の
+backward-compatible|adj|後方互換の
+intermittent|adj|断続的な
+redundant|adj|冗長な
+persistent|adj|永続的な
+legacy|adj|旧式の、レガシーな
+concurrent|adj|同時実行の、並行の
+respectively|adv|それぞれ
+inadvertently|adv|うっかり、不注意で
+ideally|adv|理想的には
+explicitly|adv|明示的に
+tentatively|adv|暫定的に
+retroactively|adv|さかのぼって`;
+
+const RAW_TOEIC = `abandon|v|捨てる、放棄する
+accurate|adj|正確な
+acquire|v|獲得する、習得する
+adequate|adj|十分な、適切な
+adjust|v|調整する
+afford|v|余裕がある
+allocate|v|割り当てる
+anticipate|v|予期する
+apparent|adj|明らかな
+approve|v|承認する
+assume|v|仮定する、思い込む
+attach|v|添付する、取り付ける
+attempt|v|試みる
+available|adj|利用可能な
+avoid|v|避ける
+aware|adj|気づいている
+benefit|n|利益、恩恵
+brief|adj|短い、簡潔な
+capable|adj|能力がある
+challenge|n|課題、挑戦
+claim|v|主張する、要求する
+colleague|n|同僚
+commit|v|約束する、専念する
+comprehensive|adj|包括的な
+conduct|v|実施する
+confirm|v|確認する
+consequence|n|結果、影響
+considerable|adj|かなりの
+consistent|adj|一貫した
+constraint|n|制約
+contribute|v|貢献する
+convenient|adj|便利な
+crucial|adj|極めて重要な
+deadline|n|締め切り
+decline|v|断る、減少する
+dedicate|v|捧げる
+deliver|v|配達する、届ける
+demand|n|需要、要求
+deny|v|否定する
+deposit|n|預金、手付金
+derive|v|由来する、導き出す
+determine|v|決定する
+distribute|v|配布する
+efficient|adj|効率的な
+eliminate|v|取り除く
+emerge|v|現れる
+emphasize|v|強調する
+enhance|v|高める、強化する
+ensure|v|確実にする
+equivalent|adj|同等の
+estimate|v|見積もる
+evaluate|v|評価する
+exceed|v|超える
+expand|v|拡大する
+expense|n|費用、出費
+explicit|adj|明確な、明示的な
+facilitate|v|促進する、容易にする
+feasible|adj|実現可能な
+flexible|adj|柔軟な
+fluctuate|v|変動する
+forecast|n|予測、予報
+frequent|adj|頻繁な
+fundamental|adj|根本的な
+generate|v|生み出す
+grant|v|与える、認める
+guarantee|v|保証する
+hesitate|v|ためらう
+identical|adj|同一の
+illustrate|v|説明する、図解する
+implement|v|実行する、実装する
+imply|v|暗に意味する
+impose|v|課す
+inevitable|adj|避けられない
+inquiry|n|問い合わせ
+inspect|v|検査する
+install|v|設置する、インストールする
+integrate|v|統合する
+intend|v|意図する
+interrupt|v|中断する、邪魔する
+inventory|n|在庫、目録
+investigate|v|調査する
+involve|v|含む、関与させる
+maintain|v|維持する
+mandatory|adj|義務的な、必須の
+modify|v|修正する、変更する
+monitor|v|監視する
+negotiate|v|交渉する
+notify|v|通知する
+objective|n|目的、目標
+obtain|v|得る
+occupy|v|占める
+ongoing|adj|進行中の
+overcome|v|克服する
+participate|v|参加する
+perceive|v|知覚する、気づく
+persuade|v|説得する
+postpone|v|延期する
+preliminary|adj|予備の、準備の
+priority|n|優先事項
+proceed|v|進める、続行する
+prohibit|v|禁止する
+prompt|adj|迅速な
+proportion|n|割合、比率
+pursue|v|追求する
+qualify|v|資格を得る
+reluctant|adj|気が進まない
+remarkable|adj|注目すべき
+remind|v|思い出させる
+renovate|v|改装する
+replace|v|取り替える
+require|v|必要とする
+resign|v|辞職する
+resolve|v|解決する
+restore|v|復元する、回復する
+retain|v|保持する
+reveal|v|明らかにする
+revenue|n|収益、歳入
+revise|v|改訂する
+summarize|v|要約する
+supervise|v|監督する
+suspend|v|一時停止する
+sustain|v|持続させる
+temporary|adj|一時的な
+tentative|adj|仮の、暫定的な
+transfer|v|移す、転送する
+transparent|adj|透明な
+undergo|v|経験する、受ける
+unprecedented|adj|前例のない
+urgent|adj|緊急の
+valid|adj|有効な
+verify|v|検証する
+vulnerable|adj|脆弱な、傷つきやすい
+withdraw|v|引き出す、撤回する
+agenda|n|議題
+procedure|n|手順
+budget|n|予算
+candidate|n|候補者
+merchandise|n|商品
+occupation|n|職業
+receipt|n|領収書
+refund|n|払い戻し
+survey|n|調査、アンケート
+shortage|n|不足
+venue|n|会場
+attendee|n|出席者
+subsidiary|n|子会社
+expertise|n|専門知識
+approximately|adv|およそ
+eventually|adv|最終的に
+immediately|adv|直ちに
+previously|adv|以前に
+relatively|adv|比較的
+accordingly|adv|それに応じて`;
+
+const POS = {n:'名詞', v:'動詞', adj:'形容詞', adv:'副詞'};
+const parseRaw = raw => raw.trim().split('\n').map(l => { const [w,p,m] = l.split('|'); return {w, p, m}; });
+// 内蔵デッキ。ここに {id, name, desc, raw} を足せばデッキが増える
+const BUILTIN_DECKS = [
+  {id:'basic',    name:'中学基礎',       desc:'日常の基本語から',      raw:RAW_BASIC},
+  {id:'toeic',    name:'TOEIC頻出',      desc:'ビジネスの重要語',      raw:RAW_TOEIC},
+  {id:'advanced', name:'上級',           desc:'英検準1級〜1級レベル',  raw:RAW_ADVANCED},
+  {id:'it',       name:'IT・エンジニア', desc:'開発・運用の現場で使う語', raw:RAW_IT},
+].map(d => ({id:d.id, name:d.name, desc:d.desc, builtin:true, words:parseRaw(d.raw)}));
+const $ = s => document.querySelector(s);
+
+const PREFIX = 'wordsprint.v1.';
+const store = {
+  get(k, d) { try { const v = localStorage.getItem(PREFIX + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem(PREFIX + k, JSON.stringify(v)); } catch (e) {} }
+};
+const settings = Object.assign({deck:'toeic', dir:'e2j', count:20, limit:0, speak:false}, store.get('settings', {}));
+let stats = store.get('stats', {});
+let customDecks = store.get('decks', null);
+if (!customDecks) { // 旧バージョンの「マイ単語」を移行
+  const old = store.get('custom', []);
+  customDecks = old.length ? [{id:'c1', name:'マイ単語', words:old}] : [];
+  store.set('decks', customDecks);
+}
+const saveDecks = () => store.set('decks', customDecks);
+const allDecks = () => [...BUILTIN_DECKS, ...customDecks];
+if (settings.deck === 'builtin') settings.deck = 'toeic';
+if (settings.deck === 'custom') settings.deck = customDecks[0] ? customDecks[0].id : 'toeic';
+const canSpeak = 'speechSynthesis' in window;
+
+const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.random() * (i + 1) | 0; [a[i], a[j]] = [a[j], a[i]]; } return a; };
+const sKey = it => it.w + '\u0001' + it.m;
+const curDeck = () => { const d = allDecks().find(x => x.id === settings.deck); return d && d.words.length >= 4 ? d : BUILTIN_DECKS[1]; };
+const deck = () => curDeck().words;
+function weight(it) { const s = stats[sKey(it)]; return s ? 0.3 + 4 * (s.w + 1) / (s.c + s.w + 2) : 2.3; }
+function sample(list, n) {
+  const pool = list.map(it => ({it, wt: weight(it)}));
+  const out = []; n = Math.min(n || pool.length, pool.length);
+  while (out.length < n) {
+    let tot = 0; for (const p of pool) tot += p.wt;
+    let r = Math.random() * tot, i = 0;
+    for (; i < pool.length - 1; i++) { r -= pool[i].wt; if (r <= 0) break; }
+    out.push(pool.splice(i, 1)[0].it);
+  }
+  return out;
+}
+function speak(t) {
+  if (!canSpeak) return;
+  try { speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(t); u.lang = 'en-US'; speechSynthesis.speak(u); } catch (e) {}
+}
+function show(id) { for (const s of ['home','quiz','result','editor']) $('#' + s).hidden = s !== id; window.scrollTo(0, 0); }
+
+/* ---------- home ---------- */
+function deckStats(words) {
+  let seen = 0, master = 0, c = 0, w = 0; const weak = [];
+  for (const it of words) {
+    const s = stats[sKey(it)]; if (!s) continue;
+    seen++; c += s.c; w += s.w;
+    if (s.c >= 3 && s.c >= s.w * 3) master++;
+    if (s.w > 0) weak.push(it);
+  }
+  weak.sort((a, b) => weight(b) - weight(a));
+  return {seen, master, c, w, weak};
+}
+function renderDecks(cur) {
+  const box = $('#decks'); box.innerHTML = '';
+  for (const d of allDecks()) {
+    const st = deckStats(d.words), usable = d.words.length >= 4;
+    const el = document.createElement('div');
+    el.className = 'deck' + (d.id === cur.id ? ' on' : '') + (usable ? '' : ' off');
+    el.tabIndex = 0; el.setAttribute('role', 'button');
+    el.innerHTML = '<div class="dn"></div><div class="dd"></div><div class="dm"></div><div class="bar"><i></i></div>';
+    el.querySelector('.dn').textContent = d.name;
+    el.querySelector('.dd').textContent = d.builtin ? d.desc : (usable ? 'マイデッキ' : '4語以上で使えます');
+    el.querySelector('.dm').textContent = `${d.words.length}語 · 定着 ${st.master}`;
+    el.querySelector('.bar>i').style.width = (d.words.length ? st.master / d.words.length * 100 : 0) + '%';
+    if (!d.builtin) {
+      const e = document.createElement('button'); e.className = 'edit'; e.textContent = '✎'; e.setAttribute('aria-label', '編集');
+      e.onclick = ev => { ev.stopPropagation(); openEditor(d.id); };
+      el.appendChild(e);
+    }
+    const pick = () => { if (!usable) { openEditor(d.id); return; } settings.deck = d.id; store.set('settings', settings); renderHome(); };
+    el.onclick = pick;
+    el.onkeydown = ev => { if (ev.target === el && (ev.key === 'Enter' || ev.key === ' ')) { ev.preventDefault(); pick(); } };
+    box.appendChild(el);
+  }
+  const nw = document.createElement('button'); nw.className = 'deck new'; nw.textContent = '＋ 新しいデッキ';
+  nw.onclick = () => openEditor(null);
+  box.appendChild(nw);
+}
+function renderHome() {
+  document.querySelectorAll('.seg').forEach(seg => {
+    const key = seg.dataset.key;
+    seg.querySelectorAll('button').forEach(b => b.classList.toggle('on', String(settings[key]) === b.dataset.val));
+  });
+  const cur = curDeck(); renderDecks(cur);
+  $('#startBtn').textContent = `「${cur.name}」でスタート`;
+  const {seen, master, c, w, weak} = deckStats(cur.words);
+  const acc = c + w ? Math.round(c / (c + w) * 100) + '%' : '—';
+  $('#homeStats').innerHTML =
+    `<div class="sec-title" style="margin:0 0 10px"></div><div class="tiles"><div><b>${seen}<small>/${cur.words.length}</small></b><small>出題済み</small></div><div><b>${master}</b><small>定着</small></div><div><b>${acc}</b><small>累計正答率</small></div></div>` +
+    (weak.length ? `<button class="btn big" id="weakBtn">苦手な単語を集中練習（${Math.min(weak.length, 20)}語）</button>` : '');
+  $('#homeStats .sec-title').textContent = `${cur.name} の学習状況`;
+  const wb = $('#weakBtn'); if (wb) wb.onclick = () => start(shuffle(weak.slice(0, 20)));
+}
+document.querySelectorAll('.seg').forEach(seg => seg.addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b || b.disabled) return;
+  const key = seg.dataset.key, v = b.dataset.val;
+  settings[key] = (key === 'count' || key === 'limit') ? Number(v) : key === 'speak' ? v === 'true' : v;
+  store.set('settings', settings); renderHome();
+}));
+const startNew = () => start(sample(deck(), settings.count));
+$('#startBtn').onclick = startNew;
+$('#resetBtn').onclick = () => { if (confirm('学習記録（正誤履歴）をすべて消去しますか？')) { stats = {}; store.set('stats', stats); renderHome(); } };
+
+/* ---------- quiz ---------- */
+let Q = null;
+function makeQ(it, d) {
+  const dir = settings.dir === 'mix' ? (Math.random() < .5 ? 'e2j' : 'j2e') : settings.dir;
+  const others = d.filter(x => x.m !== it.m && x.w !== it.w);
+  let pool = it.p ? others.filter(x => x.p === it.p) : [];
+  if (pool.length < 3) pool = others;
+  const label = x => dir === 'e2j' ? x.m : x.w;
+  const seen = new Set([label(it)]), picks = [];
+  for (const x of shuffle(pool.slice())) { if (seen.has(label(x))) continue; seen.add(label(x)); picks.push(x); if (picks.length === 3) break; }
+  const opts = shuffle([it, ...picks]);
+  return {it, dir, opts, ans: opts.indexOf(it), label};
+}
+function start(items) {
+  if (!items.length) return;
+  Q = {items, i:0, ok:0, missed:[], times:[], streak:0, best:0, locked:false, raf:0, to:0};
+  show('quiz'); render();
+}
+function render() {
+  const it = Q.items[Q.i]; const q = Q.q = makeQ(it, deck());
+  Q.locked = false;
+  $('#counter').textContent = `${Q.i + 1} / ${Q.items.length}`;
+  $('#prog').style.width = (Q.i / Q.items.length * 100) + '%';
+  $('#qdir').textContent = q.dir === 'e2j' ? '意味は？' : '英語では？';
+  const p = $('#prompt'); p.textContent = q.dir === 'e2j' ? it.w : it.m; p.className = 'prompt ' + (q.dir === 'e2j' ? 'en' : 'ja');
+  $('#pos').textContent = it.p ? (POS[it.p] || it.p) : '';
+  const box = $('#choices'); box.innerHTML = '';
+  q.opts.forEach((o, i) => {
+    const b = document.createElement('button'); b.className = 'choice';
+    b.innerHTML = `<span class="num">${i + 1}</span><span></span>`;
+    b.lastChild.textContent = q.label(o);
+    b.addEventListener('click', () => answer(i));
+    box.appendChild(b);
+  });
+  $('#tapNext').hidden = true;
+  $('#qcard').classList.remove('ok', 'ng');
+  $('#streak').textContent = Q.streak >= 3 ? `🔥 ${Q.streak}連続` : '';
+  $('#score').textContent = `正解 ${Q.ok}`;
+  $('#speakBtn').hidden = !canSpeak || q.dir !== 'e2j';
+  if (document.activeElement) document.activeElement.blur();
+  if (settings.speak && q.dir === 'e2j') speak(it.w);
+  Q.qt0 = performance.now();
+  startTimer();
+}
+function startTimer() {
+  cancelAnimationFrame(Q.raf);
+  const lim = settings.limit * 1000, bar = $('#timerBar');
+  $('#timer').hidden = !lim; if (!lim) return;
+  const tick = () => {
+    if (!Q || Q.locked) return;
+    const r = 1 - (performance.now() - Q.qt0) / lim;
+    bar.style.transform = `scaleX(${Math.max(0, r)})`;
+    bar.classList.toggle('low', r < .3);
+    if (r <= 0) { answer(-1); return; }
+    Q.raf = requestAnimationFrame(tick);
+  };
+  tick();
+}
+function answer(i) {
+  if (!Q || Q.locked) return;
+  Q.locked = true; Q.lockedAt = performance.now(); cancelAnimationFrame(Q.raf);
+  const {it, ans, dir} = Q.q, ok = i === ans;
+  Q.times.push(performance.now() - Q.qt0);
+  [...$('#choices').children].forEach((b, j) => {
+    b.disabled = true;
+    b.classList.add(j === ans ? 'ok' : j === i ? 'ng' : 'dim');
+  });
+  const k = sKey(it), s = stats[k] || (stats[k] = {c:0, w:0});
+  if (ok) { s.c++; Q.ok++; Q.streak++; Q.best = Math.max(Q.best, Q.streak); }
+  else { s.w++; Q.streak = 0; if (!Q.missed.includes(it)) Q.missed.push(it); }
+  s.t = Date.now(); store.set('stats', stats);
+  $('#qcard').classList.add(ok ? 'ok' : 'ng');
+  $('#score').textContent = `正解 ${Q.ok}`;
+  if (settings.speak && dir === 'j2e') speak(it.w);
+  if (ok) Q.to = setTimeout(next, 380);
+  else { $('#tapNext').hidden = false; Q.to = setTimeout(next, 1800); }
+}
+function next() {
+  if (!Q) return;
+  clearTimeout(Q.to); Q.i++;
+  if (Q.i >= Q.items.length) finish(); else render();
+}
+function quit() {
+  if (!Q) return;
+  clearTimeout(Q.to); cancelAnimationFrame(Q.raf);
+  const done = Q.times.length;
+  if (!done) { Q = null; renderHome(); show('home'); return; }
+  Q.items = Q.items.slice(0, done); finish();
+}
+function finish() {
+  cancelAnimationFrame(Q.raf); clearTimeout(Q.to);
+  const n = Q.items.length;
+  const avg = Q.times.reduce((a, b) => a + b, 0) / Q.times.length / 1000;
+  $('#rScore').textContent = `${Q.ok} / ${n}`;
+  $('#rAcc').textContent = Math.round(Q.ok / n * 100) + '%';
+  $('#rAvg').textContent = avg.toFixed(1) + '秒';
+  $('#rBest').textContent = Q.best;
+  const ul = $('#missedList'); ul.innerHTML = '';
+  for (const it of Q.missed) {
+    const li = document.createElement('li');
+    li.innerHTML = '<b></b><span></span>';
+    li.firstChild.textContent = it.w; li.lastChild.textContent = it.m;
+    if (canSpeak) { li.style.cursor = 'pointer'; li.onclick = () => speak(it.w); }
+    ul.appendChild(li);
+  }
+  $('#missedCard').hidden = !Q.missed.length;
+  $('#retryMissed').hidden = !Q.missed.length;
+  show('result');
+}
+$('#quiz').addEventListener('click', e => {
+  if (e.target.closest('#quitBtn, #speakBtn')) return;
+  if (Q && Q.locked && performance.now() - Q.lockedAt > 250) next();
+});
+$('#quitBtn').onclick = quit;
+$('#speakBtn').onclick = () => Q && speak(Q.q.it.w);
+$('#retryMissed').onclick = () => { if (Q) start(shuffle(Q.missed.slice())); };
+$('#againBtn').onclick = startNew;
+$('#homeBtn').onclick = () => { renderHome(); show('home'); };
+
+/* ---------- editor ---------- */
+function parseList(text) {
+  const out = [], seen = new Set();
+  for (let line of text.split(/\r?\n/)) {
+    line = line.trim();
+    if (!line || line.startsWith('#')) continue;
+    const m = line.match(/^(.+?)\s*[\t,|]\s*(.+)$/);
+    if (!m) continue;
+    const w = m[1].replace(/^"|"$/g, '').trim(), mean = m[2].replace(/^"|"$/g, '').trim();
+    if (!w || !mean) continue;
+    const k = w + '\u0001' + mean; if (seen.has(k)) continue; seen.add(k);
+    out.push({w, p:'', m: mean});
+  }
+  return out;
+}
+const updCount = () => { $('#editCount').textContent = parseList($('#customText').value).length + ' 語'; };
+$('#customText').addEventListener('input', updCount);
+let editingId = null;
+function openEditor(id) {
+  const d = id ? customDecks.find(x => x.id === id) : null;
+  editingId = d ? d.id : null;
+  $('#editTitle').textContent = d ? 'デッキを編集' : '新しいデッキ';
+  $('#deckName').value = d ? d.name : '';
+  $('#customText').value = d ? d.words.map(x => x.w + ',' + x.m).join('\n') : '';
+  $('#deleteDeck').hidden = !d; $('#exportDeck').hidden = !d;
+  updCount(); show('editor');
+}
+$('#cancelEdit').onclick = () => show('home');
+$('#deleteDeck').onclick = () => {
+  const d = customDecks.find(x => x.id === editingId); if (!d) return;
+  if (!confirm(`デッキ「${d.name}」を削除しますか？`)) return;
+  customDecks = customDecks.filter(x => x.id !== d.id); saveDecks();
+  if (settings.deck === d.id) { settings.deck = 'toeic'; store.set('settings', settings); }
+  renderHome(); show('home');
+};
+$('#exportDeck').onclick = () => {
+  const d = customDecks.find(x => x.id === editingId); if (!d) return;
+  const q = s => /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  const csv = '﻿' + d.words.map(x => q(x.w) + ',' + q(x.m)).join('\r\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], {type:'text/csv'}));
+  a.download = (d.name || 'deck') + '.csv'; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+};
+$('#sampleBtn').onclick = () => {
+  const t = $('#customText'); const ex = 'apple,りんご\nborrow,借りる\ncurious,好奇心の強い\ndeliberate,意図的な\nelegant,優雅な';
+  t.value = (t.value.trim() ? t.value.trim() + '\n' : '') + ex; updCount();
+};
+$('#fileIn').addEventListener('change', e => {
+  const f = e.target.files[0]; if (!f) return;
+  const r = new FileReader();
+  r.onload = () => { const t = $('#customText'); if (!$('#deckName').value.trim()) $('#deckName').value = f.name.replace(/\.[^.]+$/, ''); t.value = (t.value.trim() ? t.value.trim() + '\n' : '') + String(r.result).replace(/^\uFEFF/, ''); updCount(); };
+  r.readAsText(f); e.target.value = '';
+});
+$('#saveCustom').onclick = () => {
+  const list = parseList($('#customText').value);
+  if (list.length < 4) { alert('4語以上登録してください（現在 ' + list.length + ' 語）'); return; }
+  const name = $('#deckName').value.trim() || 'マイデッキ';
+  const d = customDecks.find(x => x.id === editingId);
+  if (d) { d.name = name; d.words = list; }
+  else { editingId = 'c' + Date.now().toString(36); customDecks.push({id:editingId, name, words:list}); }
+  saveDecks();
+  settings.deck = editingId; store.set('settings', settings);
+  renderHome(); show('home');
+};
+
+/* ---------- keyboard ---------- */
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT' || e.metaKey || e.ctrlKey || e.altKey) return;
+  if (e.target.closest && e.target.closest('.deck')) return;
+  if (!$('#quiz').hidden) {
+    if (/^[1-4]$/.test(e.key)) { answer(+e.key - 1); e.preventDefault(); }
+    else if (e.key === 'Enter' || e.key === ' ') { if (Q && Q.locked) next(); e.preventDefault(); }
+    else if (e.key === 'Escape') quit();
+  } else if (!$('#home').hidden && e.key === 'Enter') { startNew(); e.preventDefault(); }
+  else if (!$('#result').hidden && e.key === 'Enter') { startNew(); e.preventDefault(); }
+});
+
+renderHome();
+})();
+</script>
+</body>
+</html>
