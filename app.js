@@ -387,6 +387,18 @@ document.addEventListener('keydown', e => {
   else if (!$('#result').hidden && e.key === 'Enter') { startNew(); e.preventDefault(); }
 });
 
+/* ---------- ホーム画面アプリ（service worker） ---------- */
+// file:// では登録できない（失敗しても普通に動く）。更新の確認と差し替えは sw.js 側
+if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+  navigator.serviceWorker.addEventListener('message', e => { if (e.data && e.data.type === 'updated') $('#updateBar').hidden = false; });
+  document.addEventListener('visibilitychange', () => {
+    const sw = navigator.serviceWorker.controller;
+    if (!document.hidden && sw) sw.postMessage('check');
+  });
+}
+$('#updateReload').onclick = () => location.reload();
+
 if (!curDeck()) { // decks/ を置かずに index.html だけ持ち出したときなど
   $('#home').innerHTML = '<div class="card">単語データを読み込めませんでした。index.html と同じ場所に decks フォルダがあるか確認してください。</div>';
   return;

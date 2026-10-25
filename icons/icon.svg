@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- 角丸は iOS / Android が付けるので正方形のまま。図柄はマスカブルの安全域（中央 80%）に収める -->
+  <rect width="512" height="512" fill="#4f46e5"/>
+  <path d="M136 168 L196 344 L256 222 L316 344 L376 168" fill="none" stroke="#fff" stroke-width="46" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M176 404 H336" stroke="#a5b4fc" stroke-width="22" stroke-linecap="round"/>
+</svg>

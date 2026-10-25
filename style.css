@@ -4,7 +4,9 @@
 html,body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Hiragino Sans","Noto Sans JP",sans-serif;-webkit-tap-highlight-color:transparent}
 body{min-height:100dvh}
 [hidden]{display:none!important}
-.wrap{max-width:640px;margin:0 auto;padding:16px 16px calc(24px + env(safe-area-inset-bottom))}
+.wrap{max-width:640px;margin:0 auto;padding:calc(16px + env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) calc(24px + env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left))}
+.update-bar{display:flex;align-items:center;justify-content:space-between;gap:12px;background:var(--accent-2);color:var(--text);border:1px solid var(--accent);border-radius:12px;padding:8px 8px 8px 14px;margin-bottom:12px;font-size:14px;font-weight:600}
+.update-bar .btn{padding:8px 14px}
 .hero{padding:16px 4px 12px}
 .hero h1{margin:0;font-size:28px;letter-spacing:-.02em}
 .hero h1 span{color:var(--accent)}
