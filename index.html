@@ -5,11 +5,22 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Word Sprint</title>
 <meta name="description" content="4択クイズで英単語を高速に周回するアプリ">
-<meta name="theme-color" content="#4f46e5">
+<meta name="theme-color" content="#4f46e5" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0f1115" media="(prefers-color-scheme: dark)">
+<!-- ホーム画面アプリ（PWA） -->
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="icon" href="icons/icon-192.png" sizes="192x192" type="image/png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-title" content="Word Sprint">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <div class="wrap">
+<div class="update-bar" id="updateBar" role="status" hidden>新しいバージョンがあります<button class="btn primary" id="updateReload">更新する</button></div>
 
 <section id="home">
   <header class="hero">
@@ -97,6 +108,8 @@
 </div>
 <!-- 内蔵デッキ → 本体の順に読む。並び順がホームの表示順になる。fetch ではなく script で読むので file:// でも動く -->
 <script src="decks/basic.js"></script>
+<script src="decks/toeic300-basic.js"></script>
+<script src="decks/toeic300-core.js"></script>
 <script src="decks/toeic.js"></script>
 <script src="decks/advanced.js"></script>
 <script src="decks/it.js"></script>
