@@ -106,13 +106,13 @@ textarea{width:100%;min-height:45vh;font:14px/1.6 ui-monospace,Menlo,monospace;p
   <div class="decks" id="decks"></div>
   <div class="card">
     <div class="row"><label>出題</label>
-      <div class="seg" data-key="dir"><button data-val="e2j">英→日</button><button data-val="j2e">日→英</button><button data-val="mix">ミックス</button></div></div>
+      <div class="seg" data-key="dir"></div></div>
     <div class="row"><label>問題数</label>
-      <div class="seg" data-key="count"><button data-val="10">10</button><button data-val="20">20</button><button data-val="50">50</button><button data-val="0">全部</button></div></div>
+      <div class="seg" data-key="count"></div></div>
     <div class="row"><label>制限時間</label>
-      <div class="seg" data-key="limit"><button data-val="0">なし</button><button data-val="5">5秒</button><button data-val="3">3秒</button></div></div>
+      <div class="seg" data-key="limit"></div></div>
     <div class="row"><label>自動発音</label>
-      <div class="seg" data-key="speak"><button data-val="false">オフ</button><button data-val="true">オン</button></div></div>
+      <div class="seg" data-key="speak"></div></div>
     <button id="startBtn" class="btn primary big">スタート</button>
     <p class="hint">キーボード：1〜4で回答 ／ Enterで次へ ／ Escで中断</p>
   </div>
@@ -181,377 +181,50 @@ textarea{width:100%;min-height:45vh;font:14px/1.6 ui-monospace,Menlo,monospace;p
 </section>
 
 </div>
+<!-- 内蔵デッキ。並び順がホームの表示順になる。fetch ではなく script で読むので file:// でも動く -->
+<script src="decks/basic.js"></script>
+<script src="decks/toeic.js"></script>
+<script src="decks/advanced.js"></script>
+<script src="decks/it.js"></script>
 <script>
 (() => {
-const RAW_BASIC = `family|n|家族
-friend|n|友達
-library|n|図書館
-hospital|n|病院
-station|n|駅
-morning|n|朝
-evening|n|夕方
-weather|n|天気
-season|n|季節
-country|n|国
-language|n|言語
-question|n|質問
-idea|n|考え、アイデア
-history|n|歴史
-science|n|科学
-picture|n|絵、写真
-breakfast|n|朝食
-vacation|n|休暇
-village|n|村
-river|n|川
-mountain|n|山
-island|n|島
-vegetable|n|野菜
-umbrella|n|傘
-future|n|未来
-begin|v|始める
-finish|v|終える
-arrive|v|到着する
-leave|v|出発する、去る
-remember|v|覚えている
-forget|v|忘れる
-borrow|v|借りる
-lend|v|貸す
-carry|v|運ぶ
-choose|v|選ぶ
-decide|v|決める
-explain|v|説明する
-travel|v|旅行する
-practice|v|練習する
-understand|v|理解する
-believe|v|信じる
-agree|v|賛成する
-worry|v|心配する
-wait|v|待つ
-build|v|建てる
-catch|v|捕まえる
-teach|v|教える
-sell|v|売る
-buy|v|買う
-win|v|勝つ
-lose|v|負ける、失う
-beautiful|adj|美しい
-difficult|adj|難しい
-easy|adj|簡単な
-important|adj|重要な
-famous|adj|有名な
-popular|adj|人気のある
-expensive|adj|高価な
-cheap|adj|安い
-busy|adj|忙しい
-hungry|adj|空腹の
-tired|adj|疲れた
-angry|adj|怒った
-different|adj|異なる
-careful|adj|注意深い
-dangerous|adj|危険な
-quiet|adj|静かな
-strong|adj|強い
-kind|adj|親切な
-young|adj|若い
-always|adv|いつも
-usually|adv|たいてい
-sometimes|adv|ときどき
-never|adv|決して〜ない
-often|adv|よく、しばしば
-already|adv|すでに
-again|adv|再び
-together|adv|一緒に
-soon|adv|すぐに
-slowly|adv|ゆっくりと`;
-
-const RAW_ADVANCED = `ambiguity|n|曖昧さ
-consensus|n|合意、総意
-discrepancy|n|食い違い、矛盾
-dilemma|n|板挟み、ジレンマ
-incentive|n|動機付け、誘因
-hypothesis|n|仮説
-scrutiny|n|精査
-catalyst|n|触媒、きっかけ
-paradox|n|逆説
-prerequisite|n|前提条件
-repercussion|n|（悪い）影響、反響
-skepticism|n|懐疑
-stance|n|立場、姿勢
-anomaly|n|異常、例外
-compromise|n|妥協
-alleviate|v|和らげる
-advocate|v|提唱する、擁護する
-compel|v|強いる
-contemplate|v|熟考する
-deteriorate|v|悪化する
-discern|v|見分ける
-endorse|v|支持する、承認する
-fabricate|v|でっち上げる
-hinder|v|妨げる
-infer|v|推論する
-refute|v|反論する、論破する
-undermine|v|損なう、弱体化させる
-procrastinate|v|先延ばしにする
-reconcile|v|和解させる、調和させる
-tolerate|v|我慢する、容認する
-outweigh|v|上回る
-renounce|v|放棄する
-arbitrary|adj|恣意的な、任意の
-conspicuous|adj|目立つ
-meticulous|adj|細心の、几帳面な
-obsolete|adj|時代遅れの
-plausible|adj|もっともらしい
-profound|adj|深遠な、重大な
-resilient|adj|回復力のある
-tedious|adj|退屈な、うんざりする
-versatile|adj|多才な、用途の広い
-imminent|adj|差し迫った
-indispensable|adj|不可欠な
-lucrative|adj|儲かる
-ubiquitous|adj|どこにでもある
-candid|adj|率直な
-frugal|adj|倹約な
-obscure|adj|不明瞭な、無名の
-inherently|adv|本質的に
-arguably|adv|ほぼ間違いなく
-predominantly|adv|主に
-invariably|adv|必ず、常に
-reluctantly|adv|しぶしぶ
-thereby|adv|それによって`;
-
-const RAW_IT = `dependency|n|依存関係
-deployment|n|デプロイ、展開
-latency|n|遅延、レイテンシ
-throughput|n|スループット、処理量
-bottleneck|n|ボトルネック、隘路
-redundancy|n|冗長性
-availability|n|可用性
-scalability|n|拡張性
-vulnerability|n|脆弱性
-authentication|n|認証
-authorization|n|認可
-encryption|n|暗号化
-credential|n|認証情報
-outage|n|サービス停止
-incident|n|インシデント、事象
-workaround|n|回避策
-root cause|n|根本原因
-rollback|n|ロールバック、切り戻し
-migration|n|移行
-configuration|n|設定、構成
-specification|n|仕様
-requirement|n|要件
-deliverable|n|成果物
-milestone|n|マイルストーン、節目
-backlog|n|未処理の作業、バックログ
-threshold|n|しきい値
-metric|n|指標
-granularity|n|粒度
-deprecate|v|非推奨にする
-provision|v|（リソースを）用意する
-propagate|v|伝播する
-mitigate|v|緩和する
-troubleshoot|v|問題の原因を調べて解決する
-reproduce|v|再現する
-isolate|v|切り分ける、隔離する
-escalate|v|上位に引き継ぐ、エスカレーションする
-refactor|v|リファクタリングする
-validate|v|妥当性を検証する
-terminate|v|終了させる
-initialize|v|初期化する
-invoke|v|呼び出す
-override|v|上書きする
-retrieve|v|取得する
-decommission|v|廃止する、退役させる
-consolidate|v|統合する、集約する
-enforce|v|強制する、適用する
-append|v|末尾に追加する
-idempotent|adj|冪等な
-asynchronous|adj|非同期の
-backward-compatible|adj|後方互換の
-intermittent|adj|断続的な
-redundant|adj|冗長な
-persistent|adj|永続的な
-legacy|adj|旧式の、レガシーな
-concurrent|adj|同時実行の、並行の
-respectively|adv|それぞれ
-inadvertently|adv|うっかり、不注意で
-ideally|adv|理想的には
-explicitly|adv|明示的に
-tentatively|adv|暫定的に
-retroactively|adv|さかのぼって`;
-
-const RAW_TOEIC = `abandon|v|捨てる、放棄する
-accurate|adj|正確な
-acquire|v|獲得する、習得する
-adequate|adj|十分な、適切な
-adjust|v|調整する
-afford|v|余裕がある
-allocate|v|割り当てる
-anticipate|v|予期する
-apparent|adj|明らかな
-approve|v|承認する
-assume|v|仮定する、思い込む
-attach|v|添付する、取り付ける
-attempt|v|試みる
-available|adj|利用可能な
-avoid|v|避ける
-aware|adj|気づいている
-benefit|n|利益、恩恵
-brief|adj|短い、簡潔な
-capable|adj|能力がある
-challenge|n|課題、挑戦
-claim|v|主張する、要求する
-colleague|n|同僚
-commit|v|約束する、専念する
-comprehensive|adj|包括的な
-conduct|v|実施する
-confirm|v|確認する
-consequence|n|結果、影響
-considerable|adj|かなりの
-consistent|adj|一貫した
-constraint|n|制約
-contribute|v|貢献する
-convenient|adj|便利な
-crucial|adj|極めて重要な
-deadline|n|締め切り
-decline|v|断る、減少する
-dedicate|v|捧げる
-deliver|v|配達する、届ける
-demand|n|需要、要求
-deny|v|否定する
-deposit|n|預金、手付金
-derive|v|由来する、導き出す
-determine|v|決定する
-distribute|v|配布する
-efficient|adj|効率的な
-eliminate|v|取り除く
-emerge|v|現れる
-emphasize|v|強調する
-enhance|v|高める、強化する
-ensure|v|確実にする
-equivalent|adj|同等の
-estimate|v|見積もる
-evaluate|v|評価する
-exceed|v|超える
-expand|v|拡大する
-expense|n|費用、出費
-explicit|adj|明確な、明示的な
-facilitate|v|促進する、容易にする
-feasible|adj|実現可能な
-flexible|adj|柔軟な
-fluctuate|v|変動する
-forecast|n|予測、予報
-frequent|adj|頻繁な
-fundamental|adj|根本的な
-generate|v|生み出す
-grant|v|与える、認める
-guarantee|v|保証する
-hesitate|v|ためらう
-identical|adj|同一の
-illustrate|v|説明する、図解する
-implement|v|実行する、実装する
-imply|v|暗に意味する
-impose|v|課す
-inevitable|adj|避けられない
-inquiry|n|問い合わせ
-inspect|v|検査する
-install|v|設置する、インストールする
-integrate|v|統合する
-intend|v|意図する
-interrupt|v|中断する、邪魔する
-inventory|n|在庫、目録
-investigate|v|調査する
-involve|v|含む、関与させる
-maintain|v|維持する
-mandatory|adj|義務的な、必須の
-modify|v|修正する、変更する
-monitor|v|監視する
-negotiate|v|交渉する
-notify|v|通知する
-objective|n|目的、目標
-obtain|v|得る
-occupy|v|占める
-ongoing|adj|進行中の
-overcome|v|克服する
-participate|v|参加する
-perceive|v|知覚する、気づく
-persuade|v|説得する
-postpone|v|延期する
-preliminary|adj|予備の、準備の
-priority|n|優先事項
-proceed|v|進める、続行する
-prohibit|v|禁止する
-prompt|adj|迅速な
-proportion|n|割合、比率
-pursue|v|追求する
-qualify|v|資格を得る
-reluctant|adj|気が進まない
-remarkable|adj|注目すべき
-remind|v|思い出させる
-renovate|v|改装する
-replace|v|取り替える
-require|v|必要とする
-resign|v|辞職する
-resolve|v|解決する
-restore|v|復元する、回復する
-retain|v|保持する
-reveal|v|明らかにする
-revenue|n|収益、歳入
-revise|v|改訂する
-summarize|v|要約する
-supervise|v|監督する
-suspend|v|一時停止する
-sustain|v|持続させる
-temporary|adj|一時的な
-tentative|adj|仮の、暫定的な
-transfer|v|移す、転送する
-transparent|adj|透明な
-undergo|v|経験する、受ける
-unprecedented|adj|前例のない
-urgent|adj|緊急の
-valid|adj|有効な
-verify|v|検証する
-vulnerable|adj|脆弱な、傷つきやすい
-withdraw|v|引き出す、撤回する
-agenda|n|議題
-procedure|n|手順
-budget|n|予算
-candidate|n|候補者
-merchandise|n|商品
-occupation|n|職業
-receipt|n|領収書
-refund|n|払い戻し
-survey|n|調査、アンケート
-shortage|n|不足
-venue|n|会場
-attendee|n|出席者
-subsidiary|n|子会社
-expertise|n|専門知識
-approximately|adv|およそ
-eventually|adv|最終的に
-immediately|adv|直ちに
-previously|adv|以前に
-relatively|adv|比較的
-accordingly|adv|それに応じて`;
+// 調整用の値はここに集める
+const CONFIG = {
+  defaults: {deck:'toeic', dir:'e2j', count:20, limit:0, speak:false},
+  // ホームの設定ボタン。[値, 表示]
+  options: {
+    dir:   [['e2j', '英→日'], ['j2e', '日→英'], ['mix', 'ミックス']],
+    count: [[10, '10'], [20, '20'], [50, '50'], [0, '全部']],
+    limit: [[0, 'なし'], [5, '5秒'], [3, '3秒']],
+    speak: [[false, 'オフ'], [true, 'オン']],
+  },
+  nextDelayOk: 380,    // 正解後、次の問題へ進むまで（ms）
+  nextDelayNg: 1800,   // 不正解後、次の問題へ進むまで（ms）
+  tapGuard: 250,       // 回答直後のタップを「次へ」と取り違えない猶予（ms）
+  timerLow: 0.3,       // 残り時間がこの割合を切るとバーを赤くする
+  weakMax: 20,         // 「苦手な単語を集中練習」の最大語数
+  streakShow: 3,       // この連続正解数から 🔥 を出す
+  // 出題の重み。記録あり: base + scale * (誤+1)/(正+誤+2)、記録なし: unseen
+  weight: {base:0.3, scale:4, unseen:2.3},
+  // 定着の基準：正解 minCorrect 回以上、かつ正解が誤答の ratio 倍以上
+  master: {minCorrect:3, ratio:3},
+  speechLang: 'en-US',
+  storagePrefix: 'wordsprint.v1.',
+};
 
 const POS = {n:'名詞', v:'動詞', adj:'形容詞', adv:'副詞'};
 const parseRaw = raw => raw.trim().split('\n').map(l => { const [w,p,m] = l.split('|'); return {w, p, m}; });
-// 内蔵デッキ。ここに {id, name, desc, raw} を足せばデッキが増える
-const BUILTIN_DECKS = [
-  {id:'basic',    name:'中学基礎',       desc:'日常の基本語から',      raw:RAW_BASIC},
-  {id:'toeic',    name:'TOEIC頻出',      desc:'ビジネスの重要語',      raw:RAW_TOEIC},
-  {id:'advanced', name:'上級',           desc:'英検準1級〜1級レベル',  raw:RAW_ADVANCED},
-  {id:'it',       name:'IT・エンジニア', desc:'開発・運用の現場で使う語', raw:RAW_IT},
-].map(d => ({id:d.id, name:d.name, desc:d.desc, builtin:true, words:parseRaw(d.raw)}));
+// 内蔵デッキは decks/*.js が window.WORD_SPRINT_DECKS に積む（追加方法は README）
+const BUILTIN_DECKS = (window.WORD_SPRINT_DECKS || [])
+  .map(d => ({id:d.id, name:d.name, desc:d.desc, builtin:true, words:parseRaw(d.raw)}));
 const $ = s => document.querySelector(s);
 
-const PREFIX = 'wordsprint.v1.';
+const PREFIX = CONFIG.storagePrefix;
 const store = {
   get(k, d) { try { const v = localStorage.getItem(PREFIX + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
   set(k, v) { try { localStorage.setItem(PREFIX + k, JSON.stringify(v)); } catch (e) {} }
 };
-const settings = Object.assign({deck:'toeic', dir:'e2j', count:20, limit:0, speak:false}, store.get('settings', {}));
+const settings = Object.assign({}, CONFIG.defaults, store.get('settings', {}));
 let stats = store.get('stats', {});
 let customDecks = store.get('decks', null);
 if (!customDecks) { // 旧バージョンの「マイ単語」を移行
@@ -561,15 +234,17 @@ if (!customDecks) { // 旧バージョンの「マイ単語」を移行
 }
 const saveDecks = () => store.set('decks', customDecks);
 const allDecks = () => [...BUILTIN_DECKS, ...customDecks];
-if (settings.deck === 'builtin') settings.deck = 'toeic';
-if (settings.deck === 'custom') settings.deck = customDecks[0] ? customDecks[0].id : 'toeic';
+if (settings.deck === 'builtin') settings.deck = CONFIG.defaults.deck;
+if (settings.deck === 'custom') settings.deck = customDecks[0] ? customDecks[0].id : CONFIG.defaults.deck;
 const canSpeak = 'speechSynthesis' in window;
 
 const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.random() * (i + 1) | 0; [a[i], a[j]] = [a[j], a[i]]; } return a; };
 const sKey = it => it.w + '\u0001' + it.m;
-const curDeck = () => { const d = allDecks().find(x => x.id === settings.deck); return d && d.words.length >= 4 ? d : BUILTIN_DECKS[1]; };
+const usable = d => d && d.words.length >= 4;
+// 選択中のデッキが使えなければ既定のデッキ、それも無ければ最初の内蔵デッキ
+const curDeck = () => [settings.deck, CONFIG.defaults.deck].map(id => allDecks().find(x => x.id === id)).find(usable) || BUILTIN_DECKS.find(usable);
 const deck = () => curDeck().words;
-function weight(it) { const s = stats[sKey(it)]; return s ? 0.3 + 4 * (s.w + 1) / (s.c + s.w + 2) : 2.3; }
+function weight(it) { const s = stats[sKey(it)], W = CONFIG.weight; return s ? W.base + W.scale * (s.w + 1) / (s.c + s.w + 2) : W.unseen; }
 function sample(list, n) {
   const pool = list.map(it => ({it, wt: weight(it)}));
   const out = []; n = Math.min(n || pool.length, pool.length);
@@ -583,7 +258,7 @@ function sample(list, n) {
 }
 function speak(t) {
   if (!canSpeak) return;
-  try { speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(t); u.lang = 'en-US'; speechSynthesis.speak(u); } catch (e) {}
+  try { speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(t); u.lang = CONFIG.speechLang; speechSynthesis.speak(u); } catch (e) {}
 }
 function show(id) { for (const s of ['home','quiz','result','editor']) $('#' + s).hidden = s !== id; window.scrollTo(0, 0); }
 
@@ -593,7 +268,7 @@ function deckStats(words) {
   for (const it of words) {
     const s = stats[sKey(it)]; if (!s) continue;
     seen++; c += s.c; w += s.w;
-    if (s.c >= 3 && s.c >= s.w * 3) master++;
+    if (s.c >= CONFIG.master.minCorrect && s.c >= s.w * CONFIG.master.ratio) master++;
     if (s.w > 0) weak.push(it);
   }
   weak.sort((a, b) => weight(b) - weight(a));
@@ -636,16 +311,19 @@ function renderHome() {
   const acc = c + w ? Math.round(c / (c + w) * 100) + '%' : '—';
   $('#homeStats').innerHTML =
     `<div class="sec-title" style="margin:0 0 10px"></div><div class="tiles"><div><b>${seen}<small>/${cur.words.length}</small></b><small>出題済み</small></div><div><b>${master}</b><small>定着</small></div><div><b>${acc}</b><small>累計正答率</small></div></div>` +
-    (weak.length ? `<button class="btn big" id="weakBtn">苦手な単語を集中練習（${Math.min(weak.length, 20)}語）</button>` : '');
+    (weak.length ? `<button class="btn big" id="weakBtn">苦手な単語を集中練習（${Math.min(weak.length, CONFIG.weakMax)}語）</button>` : '');
   $('#homeStats .sec-title').textContent = `${cur.name} の学習状況`;
-  const wb = $('#weakBtn'); if (wb) wb.onclick = () => start(shuffle(weak.slice(0, 20)));
+  const wb = $('#weakBtn'); if (wb) wb.onclick = () => start(shuffle(weak.slice(0, CONFIG.weakMax)));
 }
-document.querySelectorAll('.seg').forEach(seg => seg.addEventListener('click', e => {
-  const b = e.target.closest('button'); if (!b || b.disabled) return;
-  const key = seg.dataset.key, v = b.dataset.val;
-  settings[key] = (key === 'count' || key === 'limit') ? Number(v) : key === 'speak' ? v === 'true' : v;
-  store.set('settings', settings); renderHome();
-}));
+// 設定ボタンは CONFIG.options から作る。押したボタンの値は型を保ったまま settings に入れる
+document.querySelectorAll('.seg').forEach(seg => {
+  const key = seg.dataset.key;
+  for (const [v, label] of CONFIG.options[key]) {
+    const b = document.createElement('button'); b.dataset.val = String(v); b.textContent = label;
+    b.addEventListener('click', () => { settings[key] = v; store.set('settings', settings); renderHome(); });
+    seg.appendChild(b);
+  }
+});
 const startNew = () => start(sample(deck(), settings.count));
 $('#startBtn').onclick = startNew;
 $('#resetBtn').onclick = () => { if (confirm('学習記録（正誤履歴）をすべて消去しますか？')) { stats = {}; store.set('stats', stats); renderHome(); } };
@@ -686,7 +364,7 @@ function render() {
   });
   $('#tapNext').hidden = true;
   $('#qcard').classList.remove('ok', 'ng');
-  $('#streak').textContent = Q.streak >= 3 ? `🔥 ${Q.streak}連続` : '';
+  $('#streak').textContent = Q.streak >= CONFIG.streakShow ? `🔥 ${Q.streak}連続` : '';
   $('#score').textContent = `正解 ${Q.ok}`;
   $('#speakBtn').hidden = !canSpeak || q.dir !== 'e2j';
   if (document.activeElement) document.activeElement.blur();
@@ -702,7 +380,7 @@ function startTimer() {
     if (!Q || Q.locked) return;
     const r = 1 - (performance.now() - Q.qt0) / lim;
     bar.style.transform = `scaleX(${Math.max(0, r)})`;
-    bar.classList.toggle('low', r < .3);
+    bar.classList.toggle('low', r < CONFIG.timerLow);
     if (r <= 0) { answer(-1); return; }
     Q.raf = requestAnimationFrame(tick);
   };
@@ -724,8 +402,8 @@ function answer(i) {
   $('#qcard').classList.add(ok ? 'ok' : 'ng');
   $('#score').textContent = `正解 ${Q.ok}`;
   if (settings.speak && dir === 'j2e') speak(it.w);
-  if (ok) Q.to = setTimeout(next, 380);
-  else { $('#tapNext').hidden = false; Q.to = setTimeout(next, 1800); }
+  if (ok) Q.to = setTimeout(next, CONFIG.nextDelayOk);
+  else { $('#tapNext').hidden = false; Q.to = setTimeout(next, CONFIG.nextDelayNg); }
 }
 function next() {
   if (!Q) return;
@@ -762,7 +440,7 @@ function finish() {
 }
 $('#quiz').addEventListener('click', e => {
   if (e.target.closest('#quitBtn, #speakBtn')) return;
-  if (Q && Q.locked && performance.now() - Q.lockedAt > 250) next();
+  if (Q && Q.locked && performance.now() - Q.lockedAt > CONFIG.tapGuard) next();
 });
 // 別アプリ・別タブにいた間は回答時間に数えない（戻った瞬間に時間切れにしない）
 document.addEventListener('visibilitychange', () => {
@@ -835,7 +513,7 @@ $('#deleteDeck').onclick = () => {
   const d = customDecks.find(x => x.id === editingId); if (!d) return;
   if (!confirm(`デッキ「${d.name}」を削除しますか？`)) return;
   customDecks = customDecks.filter(x => x.id !== d.id); saveDecks();
-  if (settings.deck === d.id) { settings.deck = 'toeic'; store.set('settings', settings); }
+  if (settings.deck === d.id) { settings.deck = CONFIG.defaults.deck; store.set('settings', settings); }
   renderHome(); show('home');
 };
 $('#exportDeck').onclick = () => {
@@ -897,6 +575,10 @@ document.addEventListener('keydown', e => {
   else if (!$('#result').hidden && e.key === 'Enter') { startNew(); e.preventDefault(); }
 });
 
+if (!curDeck()) { // decks/ を置かずに index.html だけ持ち出したときなど
+  $('#home').innerHTML = '<div class="card">単語データを読み込めませんでした。index.html と同じ場所に decks フォルダがあるか確認してください。</div>';
+  return;
+}
 renderHome();
 })();
 </script>
