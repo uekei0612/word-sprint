@@ -740,7 +740,8 @@ function quit() {
   Q.items = Q.items.slice(0, done); finish();
 }
 function finish() {
-  cancelAnimationFrame(Q.raf); clearTimeout(Q.to);
+  // Q は「間違えた単語だけもう一度」のために残すので、以後の回答・タイマー再開を受け付けない
+  Q.locked = true; cancelAnimationFrame(Q.raf); clearTimeout(Q.to);
   const n = Q.items.length;
   const avg = Q.times.reduce((a, b) => a + b, 0) / Q.times.length / 1000;
   $('#rScore').textContent = `${Q.ok} / ${n}`;
