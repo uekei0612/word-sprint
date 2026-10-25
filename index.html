@@ -763,6 +763,14 @@ $('#quiz').addEventListener('click', e => {
   if (e.target.closest('#quitBtn, #speakBtn')) return;
   if (Q && Q.locked && performance.now() - Q.lockedAt > 250) next();
 });
+// 別アプリ・別タブにいた間は回答時間に数えない（戻った瞬間に時間切れにしない）
+document.addEventListener('visibilitychange', () => {
+  if (!Q) return;
+  if (document.hidden) { Q.hiddenAt = performance.now(); cancelAnimationFrame(Q.raf); return; }
+  if (!Q.hiddenAt) return;
+  const away = performance.now() - Math.max(Q.hiddenAt, Q.qt0); Q.hiddenAt = 0;
+  if (!Q.locked && away > 0) { Q.qt0 += away; startTimer(); }
+});
 $('#quitBtn').onclick = quit;
 $('#speakBtn').onclick = () => Q && speak(Q.q.it.w);
 $('#retryMissed').onclick = () => { if (Q) start(shuffle(Q.missed.slice())); };
