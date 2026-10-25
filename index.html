@@ -843,6 +843,8 @@ document.addEventListener('keydown', e => {
     if (/^[1-4]$/.test(e.key)) { answer(+e.key - 1); e.preventDefault(); }
     else if (e.key === 'Enter' || e.key === ' ') { if (Q && Q.locked) next(); e.preventDefault(); }
     else if (e.key === 'Escape') quit();
+  } else if (e.key === 'Enter' && e.target.closest && e.target.closest('button, a')) {
+    // フォーカス中のボタンの Enter はそのボタンに任せる（奪ってスタートしない）
   } else if (!$('#home').hidden && e.key === 'Enter') { startNew(); e.preventDefault(); }
   else if (!$('#result').hidden && e.key === 'Enter') { startNew(); e.preventDefault(); }
 });
