@@ -831,12 +831,27 @@ $('#fileIn').addEventListener('change', e => {
   r.onload = () => { const t = $('#customText'); if (!$('#deckName').value.trim()) $('#deckName').value = f.name.replace(/\.[^.]+$/, ''); t.value = (t.value.trim() ? t.value.trim() + '\n' : '') + String(r.result).replace(/^\uFEFF/, ''); updCount(); };
   r.readAsText(f); e.target.value = '';
 });
+// 記録のキーは「単語＋意味」なので、意味だけ直すと記録が外れる。
+// 単語が一意に対応するときだけ、旧キーの記録を新キーへ引き継ぐ
+function carryStats(deckId, oldWords, newWords) {
+  const newKeys = new Set(newWords.map(sKey)), count = (list, w) => list.filter(x => x.w === w).length;
+  const usedElsewhere = new Set(allDecks().filter(x => x.id !== deckId).flatMap(x => x.words.map(sKey)));
+  for (const it of newWords) {
+    const k = sKey(it);
+    if (stats[k] || count(newWords, it.w) !== 1 || count(oldWords, it.w) !== 1) continue;
+    const from = sKey(oldWords.find(x => x.w === it.w));
+    if (newKeys.has(from) || !stats[from]) continue;
+    stats[k] = {...stats[from]};
+    if (!usedElsewhere.has(from)) delete stats[from]; // 他デッキと共有している記録は残す
+  }
+  store.set('stats', stats);
+}
 $('#saveCustom').onclick = () => {
   const list = parseList($('#customText').value);
   if (list.length < 4) { alert('4語以上登録してください（現在 ' + list.length + ' 語）'); return; }
   const name = $('#deckName').value.trim() || 'マイデッキ';
   const d = customDecks.find(x => x.id === editingId);
-  if (d) { d.name = name; d.words = list; }
+  if (d) { carryStats(d.id, d.words, list); d.name = name; d.words = list; }
   else { editingId = 'c' + Date.now().toString(36); customDecks.push({id:editingId, name, words:list}); }
   saveDecks();
   settings.deck = editingId; store.set('settings', settings);
