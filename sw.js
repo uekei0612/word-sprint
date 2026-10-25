@@ -8,7 +8,7 @@ const CACHE = 'word-sprint';
 // オフラインで要るファイル。index.html が読み込むものを増やしたらここにも足す
 const FILES = [
   './', 'index.html', 'style.css', 'app.js', 'manifest.webmanifest',
-  'decks/basic.js', 'decks/toeic.js', 'decks/advanced.js', 'decks/it.js',
+  'decks/basic.js', 'decks/toeic300-basic.js', 'decks/toeic300-core.js', 'decks/toeic.js', 'decks/advanced.js', 'decks/it.js',
   'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png',
 ];
 const CHECK_INTERVAL = 60 * 1000; // 確認の最短間隔（アプリの出入りのたびに通信しない）
