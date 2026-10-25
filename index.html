@@ -778,15 +778,40 @@ $('#againBtn').onclick = startNew;
 $('#homeBtn').onclick = () => { renderHome(); show('home'); };
 
 /* ---------- editor ---------- */
+const unquote = s => /^"[\s\S]*"$/.test(s) ? s.slice(1, -1).replace(/""/g, '"') : s;
+// 1 行を [単語, 意味] に分ける。タブがあればタブで、無ければ最初の , か | で区切る。
+// 先頭が " の CSV フィールドは閉じ " まで読み、"" を " に戻す（書き出しとの往復を保つ）
+function splitPair(line) {
+  let w, rest;
+  if (line[0] === '"') {
+    let i = 1, s = '';
+    for (; i < line.length; i++) {
+      if (line[i] !== '"') s += line[i];
+      else if (line[i + 1] === '"') { s += '"'; i++; }
+      else break;
+    }
+    const m = line.slice(i + 1).match(/^\s*[\t,|]\s*(.*)$/);
+    if (i >= line.length || !m) return null;
+    w = s; rest = m[1];
+  } else {
+    const m = line.match(line.includes('\t') ? /^(.+?)\s*\t\s*(.+)$/ : /^(.+?)\s*[,|]\s*(.+)$/);
+    if (!m) return null;
+    w = m[1]; rest = m[2];
+  }
+  return [w.trim(), unquote(rest.trim()).trim()];
+}
+const csvField = s => /[",|\t\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+const toLine = x => csvField(x.w) + ',' + csvField(x.m);
+const isHeader =(w, m) => /^(word|english|en|term|英単語|単語|英語)$/i.test(w) && /^(meaning|japanese|ja|definition|意味|日本語|訳)$/i.test(m);
 function parseList(text) {
   const out = [], seen = new Set();
   for (let line of text.split(/\r?\n/)) {
     line = line.trim();
     if (!line || line.startsWith('#')) continue;
-    const m = line.match(/^(.+?)\s*[\t,|]\s*(.+)$/);
-    if (!m) continue;
-    const w = m[1].replace(/^"|"$/g, '').trim(), mean = m[2].replace(/^"|"$/g, '').trim();
-    if (!w || !mean) continue;
+    const pair = splitPair(line);
+    if (!pair) continue;
+    const [w, mean] = pair;
+    if (!w || !mean || isHeader(w, mean)) continue;
     const k = w + '\u0001' + mean; if (seen.has(k)) continue; seen.add(k);
     out.push({w, p:'', m: mean});
   }
@@ -800,7 +825,7 @@ function openEditor(id) {
   editingId = d ? d.id : null;
   $('#editTitle').textContent = d ? 'デッキを編集' : '新しいデッキ';
   $('#deckName').value = d ? d.name : '';
-  $('#customText').value = d ? d.words.map(x => x.w + ',' + x.m).join('\n') : '';
+  $('#customText').value = d ? d.words.map(toLine).join('\n') : '';
   $('#deleteDeck').hidden = !d; $('#exportDeck').hidden = !d;
   updCount(); show('editor');
 }
@@ -814,8 +839,7 @@ $('#deleteDeck').onclick = () => {
 };
 $('#exportDeck').onclick = () => {
   const d = customDecks.find(x => x.id === editingId); if (!d) return;
-  const q = s => /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
-  const csv = '﻿' + d.words.map(x => q(x.w) + ',' + q(x.m)).join('\r\n');
+  const csv = '﻿' + d.words.map(toLine).join('\r\n');
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([csv], {type:'text/csv'}));
   a.download = (d.name || 'deck') + '.csv'; a.click();
