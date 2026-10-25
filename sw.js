@@ -23,11 +23,19 @@ self.addEventListener('install', e => {
 });
 self.addEventListener('activate', e => e.waitUntil(self.clients.claim()));
 
+// キャッシュから返す応答は、ブラウザに使い回させず毎回ここへ問い合わせさせる。
+// Pages の Cache-Control: max-age=600 のまま返すと、差し替え後に再読み込みしても
+// ブラウザのメモリ上の古い app.js が最長 10 分使われる
+const revalidate = r => {
+  const h = new Headers(r.headers); h.set('Cache-Control', 'no-cache');
+  return new Response(r.body, {status: r.status, statusText: r.statusText, headers: h});
+};
+
 self.addEventListener('fetch', e => {
   const req = e.request;
   if (req.method !== 'GET' || new URL(req.url).origin !== location.origin) return;
   const nav = req.mode === 'navigate';
-  e.respondWith(caches.match(nav ? './' : req, {ignoreSearch: true}).then(hit => hit || fetch(req)));
+  e.respondWith(caches.match(nav ? './' : req, {ignoreSearch: true}).then(hit => hit ? revalidate(hit) : fetch(req)));
   if (nav) e.waitUntil(checkUpdate());
 });
 // 画面がアプリに戻ってきたとき（ホーム画面アプリは再読み込みされずに再開する）
