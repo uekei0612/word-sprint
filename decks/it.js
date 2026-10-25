@@ -1,0 +1,66 @@
+// 内蔵デッキ「IT・エンジニア」。1 行 1 語で「単語|品詞|意味」、品詞は n / v / adj / adv（無ければ空でよい）
+(window.WORD_SPRINT_DECKS = window.WORD_SPRINT_DECKS || []).push({
+  id: 'it', name: 'IT・エンジニア', desc: '開発・運用の現場で使う語',
+  raw: `
+dependency|n|依存関係
+deployment|n|デプロイ、展開
+latency|n|遅延、レイテンシ
+throughput|n|スループット、処理量
+bottleneck|n|ボトルネック、隘路
+redundancy|n|冗長性
+availability|n|可用性
+scalability|n|拡張性
+vulnerability|n|脆弱性
+authentication|n|認証
+authorization|n|認可
+encryption|n|暗号化
+credential|n|認証情報
+outage|n|サービス停止
+incident|n|インシデント、事象
+workaround|n|回避策
+root cause|n|根本原因
+rollback|n|ロールバック、切り戻し
+migration|n|移行
+configuration|n|設定、構成
+specification|n|仕様
+requirement|n|要件
+deliverable|n|成果物
+milestone|n|マイルストーン、節目
+backlog|n|未処理の作業、バックログ
+threshold|n|しきい値
+metric|n|指標
+granularity|n|粒度
+deprecate|v|非推奨にする
+provision|v|（リソースを）用意する
+propagate|v|伝播する
+mitigate|v|緩和する
+troubleshoot|v|問題の原因を調べて解決する
+reproduce|v|再現する
+isolate|v|切り分ける、隔離する
+escalate|v|上位に引き継ぐ、エスカレーションする
+refactor|v|リファクタリングする
+validate|v|妥当性を検証する
+terminate|v|終了させる
+initialize|v|初期化する
+invoke|v|呼び出す
+override|v|上書きする
+retrieve|v|取得する
+decommission|v|廃止する、退役させる
+consolidate|v|統合する、集約する
+enforce|v|強制する、適用する
+append|v|末尾に追加する
+idempotent|adj|冪等な
+asynchronous|adj|非同期の
+backward-compatible|adj|後方互換の
+intermittent|adj|断続的な
+redundant|adj|冗長な
+persistent|adj|永続的な
+legacy|adj|旧式の、レガシーな
+concurrent|adj|同時実行の、並行の
+respectively|adv|それぞれ
+inadvertently|adv|うっかり、不注意で
+ideally|adv|理想的には
+explicitly|adv|明示的に
+tentatively|adv|暫定的に
+retroactively|adv|さかのぼって
+`});
