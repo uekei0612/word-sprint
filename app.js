@@ -15,6 +15,8 @@ const CONFIG = {
   tapGuard: 250,       // 回答直後のタップを「次へ」と取り違えない猶予（ms）
   timerLow: 0.3,       // 残り時間がこの割合を切るとバーを赤くする
   weakMax: 20,         // 「苦手な単語を集中練習」の最大語数
+  // 間違えた語を同じクイズの gap 問後にもう一度出す。1 語につき max 回まで（正答率・記録には数えない）
+  relearn: {gap: 4, max: 2},
   streakShow: 3,       // この連続正解数から 🔥 を出す
   // 出題の重み。記録あり: base + scale * (誤+1)/(正+誤+2)、記録なし: unseen
   weight: {base:0.3, scale:4, unseen:2.3},
@@ -283,16 +285,21 @@ function makeQ(it, d) {
 }
 function start(items) {
   if (!items.length) return;
-  Q = {items, i:0, ok:0, missed:[], times:[], streak:0, best:0, locked:false, raf:0, to:0};
+  // items は出題の列。間違えた語を途中に差し込むので、re[i] で出し直しかどうかを持つ。base は最初の問題数
+  Q = {items, re: items.map(() => false), base: items.length, again: new Map(), relearned: 0, i:0, ok:0, missed:[], times:[], streak:0, best:0, locked:false, raf:0, to:0};
   show('quiz'); render();
 }
 // keep を渡すと同じ選択肢の並びで出し直す（取り消したとき）
 function render(keep) {
-  const it = Q.items[Q.i]; const q = Q.q = keep || makeQ(it, deck());
-  Q.locked = false;
-  $('#counter').textContent = `${Q.i + 1} / ${Q.items.length}`;
+  const it = Q.items[Q.i], re = Q.re[Q.i];
+  let q = keep || makeQ(it, deck());
+  // 出し直しでは、前に出したときと選択肢の並びを変える
+  for (let n = 0; !keep && re && n < 5 && q.opts.map(q.label).join() === Q.again.get(it).order; n++) q = makeQ(it, deck());
+  Q.q = q; Q.locked = false;
+  const nth = Q.re.slice(0, Q.i + 1).filter(x => !x).length;
+  $('#counter').textContent = re ? 'もう一度' : `${nth} / ${Q.base}`;
   $('#prog').style.width = (Q.i / Q.items.length * 100) + '%';
-  $('#qdir').textContent = q.dir === 'e2j' ? '意味は？' : '英語では？';
+  $('#qdir').textContent = (re ? 'もう一度：' : '') + (q.dir === 'e2j' ? '意味は？' : '英語では？');
   const p = $('#prompt'); p.textContent = q.dir === 'e2j' ? it.w : it.m; p.className = 'prompt ' + (q.dir === 'e2j' ? 'en' : 'ja');
   p.lang = q.dir === 'e2j' ? 'en' : 'ja'; // 読み上げ機能が英単語を英語の発音で読むように
   $('#pos').textContent = it.p ? (POS[it.p] || it.p) : '';
@@ -335,16 +342,22 @@ function answer(i) {
   Q.locked = true; Q.lockedAt = performance.now(); cancelAnimationFrame(Q.raf);
   const {it, ans, dir} = Q.q, ok = i === ans, k = sKey(it);
   // 押して間違えたときだけ、回答前の状態を取っておいて取り消せるようにする（押し間違い対策）
-  Q.undo = ok || i < 0 ? null : {k, s: stats[k] ? {...stats[k]} : null, ok: Q.ok, streak: Q.streak, best: Q.best, missed: Q.missed.slice(), times: Q.times.length};
-  Q.times.push(performance.now() - Q.qt0);
+  Q.undo = ok || i < 0 ? null : {k, s: stats[k] ? {...stats[k]} : null, ok: Q.ok, streak: Q.streak, best: Q.best, missed: Q.missed.slice(), times: Q.times.length,
+    items: Q.items.slice(), re: Q.re.slice(), again: new Map([...Q.again].map(([w, a]) => [w, {...a}])), relearned: Q.relearned};
+  const re = Q.re[Q.i];
   [...$('#choices').children].forEach((b, j) => {
     b.disabled = true;
     b.classList.add(j === ans ? 'ok' : j === i ? 'ng' : 'dim');
   });
-  const s = stats[k] || (stats[k] = {c:0, w:0});
-  if (ok) { s.c++; Q.ok++; Q.streak++; Q.best = Math.max(Q.best, Q.streak); }
-  else { s.w++; Q.streak = 0; if (!Q.missed.includes(it)) Q.missed.push(it); }
-  s.t = Date.now(); saveStats([k]);
+  if (re) Q.relearned++;
+  else { // 出し直しの回答は、記録・スコア・回答時間に数えない（同じ回の中で覚えた答えで水増ししない）
+    Q.times.push(performance.now() - Q.qt0);
+    const s = stats[k] || (stats[k] = {c:0, w:0});
+    if (ok) { s.c++; Q.ok++; Q.streak++; Q.best = Math.max(Q.best, Q.streak); }
+    else { s.w++; Q.streak = 0; if (!Q.missed.includes(it)) Q.missed.push(it); }
+    s.t = Date.now(); saveStats([k]);
+  }
+  if (!ok) relearnLater(it);
   $('#qcard').classList.add(ok ? 'ok' : 'ng');
   $('#announce').textContent = ok ? '正解' : `${i < 0 ? '時間切れ' : '不正解'}。正解は ${Q.q.label(it)}`;
   $('#score').textContent = `正解 ${Q.ok}`;
@@ -352,13 +365,21 @@ function answer(i) {
   if (ok) Q.to = setTimeout(next, CONFIG.nextDelayOk);
   else { $('#tapNext').hidden = false; $('#undoBox').hidden = !Q.undo; Q.to = setTimeout(next, CONFIG.nextDelayNg); }
 }
+// 間違えた語を gap 問後に差し込む。残りが gap 問より少なければ最後に出す
+function relearnLater(it) {
+  const a = Q.again.get(it) || {n: 0};
+  if (a.n >= CONFIG.relearn.max) return;
+  a.n++; a.order = Q.q.opts.map(Q.q.label).join(); Q.again.set(it, a);
+  const at = Math.min(Q.i + 1 + CONFIG.relearn.gap, Q.items.length);
+  Q.items.splice(at, 0, it); Q.re.splice(at, 0, true);
+}
 // 直前の回答（間違えたもの）を取り消し、記録とスコアを回答前に戻して同じ問題を出し直す
 function undo() {
   if (!Q || !Q.locked || !Q.undo) return;
   const u = Q.undo; Q.undo = null; clearTimeout(Q.to);
   if (u.s) stats[u.k] = u.s; else delete stats[u.k];
   saveStats([u.k]);
-  Object.assign(Q, {ok: u.ok, streak: u.streak, best: u.best, missed: u.missed}); Q.times.length = u.times;
+  Object.assign(Q, {ok: u.ok, streak: u.streak, best: u.best, missed: u.missed, items: u.items, re: u.re, again: u.again, relearned: u.relearned}); Q.times.length = u.times;
   render(Q.q);
   $('#announce').textContent = '取り消しました。もう一度答えてください';
 }
@@ -370,19 +391,20 @@ function next() {
 function quit() {
   if (!Q) return;
   clearTimeout(Q.to); cancelAnimationFrame(Q.raf);
-  const done = Q.times.length;
+  const done = Q.times.length; // 答えた最初の問題の数（出し直しは数えない）
   if (!done) { Q = null; renderHome(); show('home'); return; }
-  Q.items = Q.items.slice(0, done); finish();
+  Q.base = done; finish();
 }
 function finish() {
   // Q は「間違えた単語だけもう一度」のために残すので、以後の回答・タイマー再開を受け付けない
   Q.locked = true; cancelAnimationFrame(Q.raf); clearTimeout(Q.to);
-  const n = Q.items.length;
+  const n = Q.base;
   const avg = Q.times.reduce((a, b) => a + b, 0) / Q.times.length / 1000;
   $('#rScore').textContent = `${Q.ok} / ${n}`;
   $('#rAcc').textContent = Math.round(Q.ok / n * 100) + '%';
   $('#rAvg').textContent = avg.toFixed(1) + '秒';
   $('#rBest').textContent = Q.best;
+  $('#rRelearn').textContent = Q.relearned ? `間違えた語を ${Q.relearned} 問もう一度出しました（正答率には数えません）` : '';
   const ul = $('#missedList'); ul.innerHTML = '';
   for (const it of Q.missed) {
     const li = document.createElement('li');
