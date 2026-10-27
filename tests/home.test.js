@@ -22,8 +22,9 @@ run(async () => {
   check('一周すると元の 20 に戻る', (await p.$eval('#chips [data-key=count]', e => e.textContent)) === '20問');
   // デッキ一覧
   check('デッキ一覧はホームにそのまま出ている（ダイアログを開かない）', await p.$eval('#decks', e => e.closest('#home') && !e.closest('dialog') && e.getBoundingClientRect().height > 0));
-  const groups = await p.$$eval('#decks h3', es => es.map(e => e.textContent));
-  check('デッキ一覧は TOEIC → レベル別 → 分野別 → 自作デッキ', groups.join('/') === 'TOEIC/レベル別/分野別/自作デッキ', groups.join('/'));
+  const order = await p.$$eval('#decks .deck', es => es.map(e => e.querySelector('.dn') ? e.querySelector('.dn').textContent : e.textContent));
+  check('デッキは TOEIC → レベル別 → 分野別 → 新しいデッキの順に 1 つの並びで出る', order.join('/') === 'TOEIC 300・基礎/TOEIC 300・頻出/TOEIC 熟語/中学基礎/中上級/上級/IT・エンジニア/＋ 新しいデッキ', order.join('/'));
+  check('デッキのタイルは 1 枚 90px 以下（スクロールを減らす）', await p.$$eval('#decks .deck', es => es.every(e => e.getBoundingClientRect().height <= 90)));
   await p.evaluate(() => [...document.querySelectorAll('#decks .deck')].find(e => e.querySelector('.dn').textContent === '中上級').click()); await sleep(100);
   check('デッキを 1 タップで選ぶと、ホームのデッキが変わり印が付く', (await p.$eval('#curName', e => e.textContent)) === '中上級' && (await p.$eval('.deck.on .dn', e => e.textContent)) === '中上級');
   // 設定

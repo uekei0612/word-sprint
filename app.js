@@ -194,15 +194,15 @@ function deckStats(words) {
   weak.sort((a, b) => weight(b) - weight(a));
   return {seen, master, c, w, weak};
 }
-// デッキ一覧（ホーム）。内蔵デッキは group ごと、自作デッキは最後にまとめる。押すとその場で選ぶ
+// デッキ一覧（ホーム）。内蔵デッキは group の順、自作デッキは最後に並べる。押すとその場で選ぶ。
+// スクロールを減らすため見出しは置かず、1 つのタイルの並びにする（見出しごとに行の空きが出る）
 function renderDecks(cur) {
   const box = $('#decks'); box.innerHTML = '';
+  const grid = document.createElement('div'); grid.className = 'deck-grid'; box.appendChild(grid);
   const groups = new Map();
   for (const d of allDecks()) { const g = d.builtin ? d.group : '自作デッキ'; if (!groups.has(g)) groups.set(g, []); groups.get(g).push(d); }
   if (!groups.has('自作デッキ')) groups.set('自作デッキ', []);
   for (const [g, list] of groups) {
-    const h = document.createElement('h3'); h.textContent = g; box.appendChild(h);
-    const grid = document.createElement('div'); grid.className = 'deck-grid'; box.appendChild(grid);
     for (const d of list) {
       const st = deckStats(d.words), usable = d.words.length >= 4;
       // 選ぶボタンと編集ボタンは入れ子にせず、行の中に並べる
@@ -213,7 +213,9 @@ function renderDecks(cur) {
       el.innerHTML = '<span class="dn"></span><span class="dd"></span><span class="dm"></span><span class="bar"><i></i></span>';
       row.appendChild(el);
       el.querySelector('.dn').textContent = d.name;
-      el.querySelector('.dd').textContent = d.builtin ? d.desc : (usable ? 'マイデッキ' : '4語以上で使えます');
+      // タイルは 1 行に収めるため「目安。特徴」の目安だけを出す（全文は上のカードと title に出る）
+      el.querySelector('.dd').textContent = d.builtin ? d.desc.split('。')[0].replace(/の目安$/, '') : (usable ? 'マイデッキ' : '4語以上で使えます');
+      if (d.builtin) el.title = d.desc;
       el.querySelector('.dm').textContent = `${d.words.length}語 · 定着 ${st.master}`;
       el.querySelector('.bar>i').style.width = (d.words.length ? st.master / d.words.length * 100 : 0) + '%';
       if (!d.builtin) {
