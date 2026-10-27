@@ -32,13 +32,74 @@ const BUILTIN_DECKS = (window.WORD_SPRINT_DECKS || [])
 const $ = s => document.querySelector(s);
 
 const PREFIX = CONFIG.storagePrefix;
+// 保存に失敗したら（容量超過・プライベートブラウズなど）1 回だけ画面で知らせる。黙って捨てると閉じたときに記録が消える
+let saveWarned = false;
+const saveFailed = () => { if (!saveWarned) { saveWarned = true; $('#saveErrBar').hidden = false; } };
 const store = {
   get(k, d) { try { const v = localStorage.getItem(PREFIX + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
-  set(k, v) { try { localStorage.setItem(PREFIX + k, JSON.stringify(v)); } catch (e) {} }
+  set(k, v) { try { localStorage.setItem(PREFIX + k, JSON.stringify(v)); return true; } catch (e) { saveFailed(); return false; } }
 };
-const settings = Object.assign({}, CONFIG.defaults, store.get('settings', {}));
-let stats = store.get('stats', {});
-let customDecks = store.get('decks', null);
+
+// 保存データの検証。{value, ok}、ok=false は一部または全部を捨てたとき
+const isObj = v => !!v && typeof v === 'object' && !Array.isArray(v);
+const isCount = n => Number.isInteger(n) && n >= 0;
+const CHECK = {
+  settings(v) {
+    if (!isObj(v)) return {value: {}, ok: false};
+    const value = {}; let ok = true;
+    for (const [k, x] of Object.entries(v)) {
+      const valid = k === 'deck' ? typeof x === 'string' : !!CONFIG.options[k] && CONFIG.options[k].some(([o]) => o === x);
+      if (valid) value[k] = x; else ok = false;
+    }
+    return {value, ok};
+  },
+  stats(v) {
+    if (!isObj(v)) return {value: {}, ok: false};
+    const value = {}; let ok = true;
+    for (const [k, s] of Object.entries(v)) {
+      if (isObj(s) && isCount(s.c) && isCount(s.w) && (s.t === undefined || typeof s.t === 'number')) value[k] = s; else ok = false;
+    }
+    return {value, ok};
+  },
+  decks(v) {
+    if (!Array.isArray(v)) return {value: [], ok: false};
+    const value = []; let ok = true;
+    for (const d of v) {
+      if (!isObj(d) || typeof d.id !== 'string' || typeof d.name !== 'string' || !Array.isArray(d.words)) { ok = false; continue; }
+      const words = d.words.filter(x => isObj(x) && typeof x.w === 'string' && x.w && typeof x.m === 'string' && x.m);
+      if (words.length !== d.words.length) ok = false;
+      value.push({...d, words: words.map(x => typeof x.p === 'string' ? x : {...x, p: ''})});
+    }
+    return {value, ok};
+  },
+};
+// 読み込んで検証する。壊れていたら元の文字列を broken.<キー>.<時刻> に退避してから、直した値で保存し直す
+// （退避せずに動かすと、次の保存で壊れたデータごと上書きされて取り戻せなくなる）
+function load(k, def) {
+  let raw;
+  try { raw = localStorage.getItem(PREFIX + k); } catch (e) { return def; }
+  if (raw == null) return def;
+  let r;
+  try { r = CHECK[k](JSON.parse(raw)); } catch (e) { r = {value: def, ok: false}; }
+  if (!r.ok) {
+    try { localStorage.setItem(PREFIX + 'broken.' + k + '.' + Date.now(), raw); } catch (e) {}
+    if (r.value != null) store.set(k, r.value);
+  }
+  return r.value;
+}
+const settings = Object.assign({}, CONFIG.defaults, load('settings', {}));
+let stats = load('stats', {});
+let customDecks = load('decks', null);
+// 学習記録の保存。ほかのタブが書いた分を消さないよう、変えた語（keys）だけを最新の保存内容に重ねる。
+// keys を省くと全体を書く（全消去のとき）
+function saveStats(keys) {
+  let base = null;
+  if (keys) try { const v = JSON.parse(localStorage.getItem(PREFIX + 'stats') || '{}'); if (isObj(v)) base = CHECK.stats(v).value; } catch (e) {}
+  if (!base) base = {...stats};
+  for (const k of keys || []) { if (stats[k]) base[k] = stats[k]; else delete base[k]; }
+  stats = base;
+  store.set('stats', stats);
+}
 if (!customDecks) { // 旧バージョンの「マイ単語」を移行
   const old = store.get('custom', []);
   customDecks = old.length ? [{id:'c1', name:'マイ単語', words:old}] : [];
@@ -138,7 +199,7 @@ document.querySelectorAll('.seg').forEach(seg => {
 });
 const startNew = () => start(sample(deck(), settings.count));
 $('#startBtn').onclick = startNew;
-$('#resetBtn').onclick = () => { if (confirm('学習記録（正誤履歴）をすべて消去しますか？')) { stats = {}; store.set('stats', stats); renderHome(); } };
+$('#resetBtn').onclick = () => { if (confirm('学習記録（正誤履歴）をすべて消去しますか？')) { stats = {}; saveStats(); renderHome(); } };
 
 /* ---------- quiz ---------- */
 let Q = null;
@@ -210,7 +271,7 @@ function answer(i) {
   const k = sKey(it), s = stats[k] || (stats[k] = {c:0, w:0});
   if (ok) { s.c++; Q.ok++; Q.streak++; Q.best = Math.max(Q.best, Q.streak); }
   else { s.w++; Q.streak = 0; if (!Q.missed.includes(it)) Q.missed.push(it); }
-  s.t = Date.now(); store.set('stats', stats);
+  s.t = Date.now(); saveStats([k]);
   $('#qcard').classList.add(ok ? 'ok' : 'ng');
   $('#score').textContent = `正解 ${Q.ok}`;
   if (settings.speak && dir === 'j2e') speak(it.w);
@@ -351,15 +412,16 @@ $('#fileIn').addEventListener('change', e => {
 function carryStats(deckId, oldWords, newWords) {
   const newKeys = new Set(newWords.map(sKey)), count = (list, w) => list.filter(x => x.w === w).length;
   const usedElsewhere = new Set(allDecks().filter(x => x.id !== deckId).flatMap(x => x.words.map(sKey)));
+  const changed = [];
   for (const it of newWords) {
     const k = sKey(it);
     if (stats[k] || count(newWords, it.w) !== 1 || count(oldWords, it.w) !== 1) continue;
     const from = sKey(oldWords.find(x => x.w === it.w));
     if (newKeys.has(from) || !stats[from]) continue;
-    stats[k] = {...stats[from]};
-    if (!usedElsewhere.has(from)) delete stats[from]; // 他デッキと共有している記録は残す
+    stats[k] = {...stats[from]}; changed.push(k);
+    if (!usedElsewhere.has(from)) { delete stats[from]; changed.push(from); } // 他デッキと共有している記録は残す
   }
-  store.set('stats', stats);
+  if (changed.length) saveStats(changed);
 }
 $('#saveCustom').onclick = () => {
   const list = parseList($('#customText').value);
@@ -386,6 +448,21 @@ document.addEventListener('keydown', e => {
   } else if (!$('#home').hidden && e.key === 'Enter') { startNew(); e.preventDefault(); }
   else if (!$('#result').hidden && e.key === 'Enter') { startNew(); e.preventDefault(); }
 });
+
+/* ---------- ほかのタブ・窓との同期 ---------- */
+// ほかのタブでの保存を取り込む。取り込まないと、こちらの古い記録で相手の分を上書きしてしまう
+window.addEventListener('storage', e => {
+  if (!e.key || !e.key.startsWith(PREFIX)) return;
+  const k = e.key.slice(PREFIX.length);
+  if (!CHECK[k]) return;
+  let v = null;
+  try { if (e.newValue != null) v = CHECK[k](JSON.parse(e.newValue)).value; } catch (err) { return; }
+  if (k === 'stats') stats = v || {};
+  else if (k === 'decks') customDecks = v || [];
+  else Object.assign(settings, CONFIG.defaults, v || {});
+  if (!$('#home').hidden) renderHome();
+});
+$('#saveErrClose').onclick = () => { $('#saveErrBar').hidden = true; };
 
 /* ---------- ホーム画面アプリ（service worker） ---------- */
 // file:// では登録できない（失敗しても普通に動く）。更新の確認と差し替えは sw.js 側
