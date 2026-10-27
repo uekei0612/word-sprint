@@ -151,9 +151,12 @@ function speak(t) {
   if (!canSpeak) return;
   try { speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(t); u.lang = CONFIG.speechLang; speechSynthesis.speak(u); } catch (e) {}
 }
+// 画面を切り替える。読み上げ機能が新しい画面の頭から読めるよう、見出しへフォーカスを移す
+const SCREEN_HEAD = {home: '#curName', result: '#rScore', editor: '#editTitle'};
 function show(id) {
   document.querySelectorAll('dialog[open]').forEach(d => d.close());
   for (const s of ['home','quiz','result','editor']) $('#' + s).hidden = s !== id; window.scrollTo(0, 0);
+  if (SCREEN_HEAD[id]) $(SCREEN_HEAD[id]).focus({preventScroll: true});
 }
 
 /* ---------- home ---------- */
@@ -178,11 +181,13 @@ function renderDecks(cur) {
     const h = document.createElement('h3'); h.textContent = g; box.appendChild(h);
     for (const d of list) {
       const st = deckStats(d.words), usable = d.words.length >= 4;
-      const el = document.createElement('div');
+      // 選ぶボタンと編集ボタンは入れ子にせず、行の中に並べる
+      const row = document.createElement('div'); row.className = 'deck-row';
+      const el = document.createElement('button');
       el.className = 'deck' + (d.id === cur.id ? ' on' : '') + (usable ? '' : ' off');
-      el.tabIndex = 0; el.setAttribute('role', 'button');
       if (d.id === cur.id) el.setAttribute('aria-current', 'true');
-      el.innerHTML = '<div class="dn"></div><div class="dd"></div><div class="dm"></div><div class="bar"><i></i></div>';
+      el.innerHTML = '<span class="dn"></span><span class="dd"></span><span class="dm"></span><span class="bar"><i></i></span>';
+      row.appendChild(el);
       el.querySelector('.dn').textContent = d.name;
       el.querySelector('.dd').textContent = d.builtin ? d.desc : (usable ? 'マイデッキ' : '4語以上で使えます');
       el.querySelector('.dm').textContent = `${d.words.length}語 · 定着 ${st.master}`;
@@ -190,12 +195,11 @@ function renderDecks(cur) {
       if (!d.builtin) {
         const e = document.createElement('button'); e.className = 'edit'; e.textContent = '✎'; e.setAttribute('aria-label', d.name + 'を編集');
         e.onclick = ev => { ev.stopPropagation(); openEditor(d.id); };
-        el.appendChild(e);
+        row.appendChild(e);
       }
       const pick = () => { if (!usable) { openEditor(d.id); return; } settings.deck = d.id; store.set('settings', settings); renderHome(); $('#deckDlg').close(); };
       el.onclick = pick;
-      el.onkeydown = ev => { if (ev.target === el && (ev.key === 'Enter' || ev.key === ' ')) { ev.preventDefault(); pick(); } };
-      box.appendChild(el);
+      box.appendChild(row);
     }
     if (g === '自作デッキ') {
       const nw = document.createElement('button'); nw.className = 'deck new'; nw.textContent = '＋ 新しいデッキ';
@@ -216,7 +220,7 @@ const CHIP_NAME = {dir: '出題', count: '問題数', limit: '制限時間'};
 function renderHome() {
   document.querySelectorAll('.seg').forEach(seg => {
     const key = seg.dataset.key;
-    seg.querySelectorAll('button').forEach(b => b.classList.toggle('on', String(settings[key]) === b.dataset.val));
+    seg.querySelectorAll('button').forEach(b => { const on = String(settings[key]) === b.dataset.val; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); });
   });
   const cur = curDeck(); renderDecks(cur);
   const {seen, master, c, w, weak} = deckStats(cur.words);
@@ -289,12 +293,13 @@ function render() {
   $('#prog').style.width = (Q.i / Q.items.length * 100) + '%';
   $('#qdir').textContent = q.dir === 'e2j' ? '意味は？' : '英語では？';
   const p = $('#prompt'); p.textContent = q.dir === 'e2j' ? it.w : it.m; p.className = 'prompt ' + (q.dir === 'e2j' ? 'en' : 'ja');
+  p.lang = q.dir === 'e2j' ? 'en' : 'ja'; // 読み上げ機能が英単語を英語の発音で読むように
   $('#pos').textContent = it.p ? (POS[it.p] || it.p) : '';
   const box = $('#choices'); box.innerHTML = '';
   q.opts.forEach((o, i) => {
     const b = document.createElement('button'); b.className = 'choice';
     b.innerHTML = `<span class="num">${i + 1}</span><span></span>`;
-    b.lastChild.textContent = q.label(o);
+    b.lastChild.textContent = q.label(o); if (q.dir === 'j2e') b.lastChild.lang = 'en';
     b.addEventListener('click', () => answer(i));
     box.appendChild(b);
   });
@@ -303,7 +308,9 @@ function render() {
   $('#streak').textContent = Q.streak >= CONFIG.streakShow ? `🔥 ${Q.streak}連続` : '';
   $('#score').textContent = `正解 ${Q.ok}`;
   $('#speakBtn').hidden = !canSpeak || q.dir !== 'e2j';
-  if (document.activeElement) document.activeElement.blur();
+  $('#announce').textContent = '';
+  // 前の問題で押したボタンからフォーカスを外し、問題のカードへ移す（読み上げ機能が問題から読む）
+  $('#qcard').focus({preventScroll: true});
   if (settings.speak && q.dir === 'e2j') speak(it.w);
   Q.qt0 = performance.now();
   startTimer();
@@ -336,6 +343,7 @@ function answer(i) {
   else { s.w++; Q.streak = 0; if (!Q.missed.includes(it)) Q.missed.push(it); }
   s.t = Date.now(); saveStats([k]);
   $('#qcard').classList.add(ok ? 'ok' : 'ng');
+  $('#announce').textContent = ok ? '正解' : `${i < 0 ? '時間切れ' : '不正解'}。正解は ${Q.q.label(it)}`;
   $('#score').textContent = `正解 ${Q.ok}`;
   if (settings.speak && dir === 'j2e') speak(it.w);
   if (ok) Q.to = setTimeout(next, CONFIG.nextDelayOk);
@@ -366,7 +374,7 @@ function finish() {
   for (const it of Q.missed) {
     const li = document.createElement('li');
     li.innerHTML = '<b></b><span></span>';
-    li.firstChild.textContent = it.w; li.lastChild.textContent = it.m;
+    li.firstChild.textContent = it.w; li.firstChild.lang = 'en'; li.lastChild.textContent = it.m;
     if (canSpeak) { li.style.cursor = 'pointer'; li.onclick = () => speak(it.w); }
     ul.appendChild(li);
   }

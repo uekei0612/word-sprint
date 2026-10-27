@@ -32,7 +32,7 @@
        デッキ選びと設定・バックアップはダイアログに畳む -->
   <div class="card current">
     <div class="cur-head">
-      <div class="cur-title"><div class="cur-name" id="curName"></div><div class="cur-desc" id="curDesc"></div></div>
+      <div class="cur-title"><h2 class="cur-name" id="curName" tabindex="-1"></h2><div class="cur-desc" id="curDesc"></div></div>
       <button class="btn ghost small" id="deckChange" aria-haspopup="dialog">デッキを変更 ›</button>
     </div>
     <div class="cur-stats" id="curStats"></div>
@@ -53,7 +53,7 @@
     <span id="counter"></span>
   </div>
   <div class="meta"><span id="streak"></span><span id="score"></span></div>
-  <div class="card qcard" id="qcard">
+  <div class="card qcard" id="qcard" tabindex="-1">
     <button class="speak" id="speakBtn" aria-label="発音">🔊</button>
     <div class="qdir" id="qdir"></div>
     <div class="prompt" id="prompt"></div>
@@ -62,11 +62,12 @@
   </div>
   <div class="choices" id="choices"></div>
   <p class="tap-next" id="tapNext" hidden>タップ / Enter で次へ</p>
+  <p class="sr-only" id="announce" aria-live="assertive"></p>
 </section>
 
 <section id="result" hidden>
   <div class="card">
-    <div class="big-score" id="rScore"></div>
+    <div class="big-score" id="rScore" tabindex="-1"></div>
     <div class="tiles">
       <div><b id="rAcc"></b><small>正答率</small></div>
       <div><b id="rAvg"></b><small>平均 / 問</small></div>
@@ -86,7 +87,7 @@
 
 <section id="editor" hidden>
   <div class="card">
-    <h2 id="editTitle">新しいデッキ</h2>
+    <h2 id="editTitle" tabindex="-1">新しいデッキ</h2>
     <input type="text" id="deckName" placeholder="デッキ名（例：英検2級 単語帳）" maxlength="40">
     <p class="muted" style="font-size:14px;margin:6px 0 4px">1行に1語、「英単語,意味」の形式で入力します。タブ区切りや「|」区切りも使えるので、Excel・スプレッドシートの2列をそのまま貼り付けられます。4語以上必要です。</p>
     <div class="edit-bar">
@@ -112,10 +113,10 @@
 <dialog id="settingsDlg" class="sheet" aria-labelledby="settingsTitle">
   <div class="sheet-head"><h2 id="settingsTitle">設定</h2><button class="btn ghost small" data-close>閉じる</button></div>
   <div class="sheet-body">
-    <div class="row"><label>出題</label><div class="seg" data-key="dir"></div></div>
-    <div class="row"><label>問題数</label><div class="seg" data-key="count"></div></div>
-    <div class="row"><label>制限時間</label><div class="seg" data-key="limit"></div></div>
-    <div class="row"><label>自動発音</label><div class="seg" data-key="speak"></div></div>
+    <div class="row"><span class="row-label" id="lblDir">出題</span><div class="seg" data-key="dir" role="group" aria-labelledby="lblDir"></div></div>
+    <div class="row"><span class="row-label" id="lblCount">問題数</span><div class="seg" data-key="count" role="group" aria-labelledby="lblCount"></div></div>
+    <div class="row"><span class="row-label" id="lblLimit">制限時間</span><div class="seg" data-key="limit" role="group" aria-labelledby="lblLimit"></div></div>
+    <div class="row"><span class="row-label" id="lblSpeak">自動発音</span><div class="seg" data-key="speak" role="group" aria-labelledby="lblSpeak"></div></div>
     <h3>学習記録</h3>
     <p class="note">記録はこの端末のブラウザにだけ保存されます。機種変更やアプリの削除に備えて、ときどき書き出してください。</p>
     <div class="actions">
