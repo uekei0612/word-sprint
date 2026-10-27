@@ -21,11 +21,12 @@ run(async () => {
   for (let i = 0; i < 3; i++) await p.click('#chips [data-key=count]');
   check('一周すると元の 20 に戻る', (await p.$eval('#chips [data-key=count]', e => e.textContent)) === '20問');
   // デッキ一覧
-  await p.click('#deckChange'); await sleep(150);
-  const groups = await p.$$eval('#decks h3', es => es.map(e => e.textContent));
-  check('デッキ一覧は TOEIC → レベル別 → 分野別 → 自作デッキ', groups.join('/') === 'TOEIC/レベル別/分野別/自作デッキ', groups.join('/'));
+  check('デッキ一覧はホームにそのまま出ている（ダイアログを開かない）', await p.$eval('#decks', e => e.closest('#home') && !e.closest('dialog') && e.getBoundingClientRect().height > 0));
+  const order = await p.$$eval('#decks .deck', es => es.map(e => e.querySelector('.dn') ? e.querySelector('.dn').textContent : e.textContent));
+  check('デッキは TOEIC → レベル別 → 分野別 → 新しいデッキの順に 1 つの並びで出る', order.join('/') === 'TOEIC 300・基礎/TOEIC 300・頻出/TOEIC 熟語/中学基礎/中上級/上級/IT・エンジニア/＋ 新しいデッキ', order.join('/'));
+  check('デッキのタイルは 1 枚 90px 以下（スクロールを減らす）', await p.$$eval('#decks .deck', es => es.every(e => e.getBoundingClientRect().height <= 90)));
   await p.evaluate(() => [...document.querySelectorAll('#decks .deck')].find(e => e.querySelector('.dn').textContent === '中上級').click()); await sleep(100);
-  check('デッキを選ぶと一覧が閉じ、ホームのデッキが変わる', !(await p.$('dialog[open]')) && (await p.$eval('#curName', e => e.textContent)) === '中上級');
+  check('デッキを 1 タップで選ぶと、ホームのデッキが変わり印が付く', (await p.$eval('#curName', e => e.textContent)) === '中上級' && (await p.$eval('.deck.on .dn', e => e.textContent)) === '中上級');
   // 設定
   await p.click('#settingsBtn'); await sleep(150);
   await p.click('.seg[data-key=dir] button:nth-child(2)'); await sleep(50);
@@ -33,15 +34,14 @@ run(async () => {
   await p.click('#settingsDlg [data-close]'); await sleep(100);
   check('閉じるで設定が閉じる', !(await p.$('dialog[open]')));
   // Enter でスタート、ダイアログ中は効かない
-  await p.click('#deckChange'); await sleep(100); await p.keyboard.press('Escape'); await sleep(100);
   await p.evaluate(() => document.activeElement.blur());
   await p.keyboard.press('Enter'); await sleep(150);
   check('ホームで Enter を押すとクイズが始まる', await p.$eval('#quiz', e => !e.hidden));
   await p.keyboard.press('Escape'); await sleep(200);
-  // 新しいデッキ → エディタが開き、一覧は閉じる
+  // 新しいデッキ → エディタが開く
   await p.goto(INDEX); await sleep(100);
-  await p.click('#deckChange'); await sleep(100); await p.click('#decks .deck.new'); await sleep(100);
-  check('「新しいデッキ」でエディタが開き、ダイアログは閉じる', await p.$eval('#editor', e => !e.hidden) && !(await p.$('dialog[open]')));
+  await p.click('#decks .deck.new'); await sleep(100);
+  check('「新しいデッキ」でエディタが開く', await p.$eval('#editor', e => !e.hidden));
   // ダークモード
   await p.emulateMediaFeatures([{name: 'prefers-color-scheme', value: 'dark'}]);
   await p.goto(INDEX); await sleep(150);

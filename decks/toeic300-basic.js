@@ -1,5 +1,5 @@
 // 内蔵デッキ「TOEIC 300・基礎」。1 行 1 語で「単語|品詞|意味」、品詞は n / v / adj / adv / phr（熟語）。無ければ空でよい
-// 4 列目以降は「例文|例文の和訳|例文中で強調する語形」。今のアプリは読まない（例文表示の実装待ち）
+// 4 列目以降は「例文|例文の和訳|例文中で強調する語形」。答えたあとに例文として出す（設定の「例文」）
 (window.WORD_SPRINT_DECKS = window.WORD_SPRINT_DECKS || []).push({
   id: 'toeic300-basic', group: 'TOEIC', name: 'TOEIC 300・基礎', desc: 'TOEIC 400〜600点の目安。例文つき',
   raw: `
