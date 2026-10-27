@@ -286,8 +286,9 @@ function start(items) {
   Q = {items, i:0, ok:0, missed:[], times:[], streak:0, best:0, locked:false, raf:0, to:0};
   show('quiz'); render();
 }
-function render() {
-  const it = Q.items[Q.i]; const q = Q.q = makeQ(it, deck());
+// keep を渡すと同じ選択肢の並びで出し直す（取り消したとき）
+function render(keep) {
+  const it = Q.items[Q.i]; const q = Q.q = keep || makeQ(it, deck());
   Q.locked = false;
   $('#counter').textContent = `${Q.i + 1} / ${Q.items.length}`;
   $('#prog').style.width = (Q.i / Q.items.length * 100) + '%';
@@ -303,7 +304,7 @@ function render() {
     b.addEventListener('click', () => answer(i));
     box.appendChild(b);
   });
-  $('#tapNext').hidden = true;
+  $('#tapNext').hidden = true; $('#undoBox').hidden = true;
   $('#qcard').classList.remove('ok', 'ng');
   $('#streak').textContent = Q.streak >= CONFIG.streakShow ? `🔥 ${Q.streak}連続` : '';
   $('#score').textContent = `正解 ${Q.ok}`;
@@ -332,13 +333,15 @@ function startTimer() {
 function answer(i) {
   if (!Q || Q.locked) return;
   Q.locked = true; Q.lockedAt = performance.now(); cancelAnimationFrame(Q.raf);
-  const {it, ans, dir} = Q.q, ok = i === ans;
+  const {it, ans, dir} = Q.q, ok = i === ans, k = sKey(it);
+  // 押して間違えたときだけ、回答前の状態を取っておいて取り消せるようにする（押し間違い対策）
+  Q.undo = ok || i < 0 ? null : {k, s: stats[k] ? {...stats[k]} : null, ok: Q.ok, streak: Q.streak, best: Q.best, missed: Q.missed.slice(), times: Q.times.length};
   Q.times.push(performance.now() - Q.qt0);
   [...$('#choices').children].forEach((b, j) => {
     b.disabled = true;
     b.classList.add(j === ans ? 'ok' : j === i ? 'ng' : 'dim');
   });
-  const k = sKey(it), s = stats[k] || (stats[k] = {c:0, w:0});
+  const s = stats[k] || (stats[k] = {c:0, w:0});
   if (ok) { s.c++; Q.ok++; Q.streak++; Q.best = Math.max(Q.best, Q.streak); }
   else { s.w++; Q.streak = 0; if (!Q.missed.includes(it)) Q.missed.push(it); }
   s.t = Date.now(); saveStats([k]);
@@ -347,7 +350,17 @@ function answer(i) {
   $('#score').textContent = `正解 ${Q.ok}`;
   if (settings.speak && dir === 'j2e') speak(it.w);
   if (ok) Q.to = setTimeout(next, CONFIG.nextDelayOk);
-  else { $('#tapNext').hidden = false; Q.to = setTimeout(next, CONFIG.nextDelayNg); }
+  else { $('#tapNext').hidden = false; $('#undoBox').hidden = !Q.undo; Q.to = setTimeout(next, CONFIG.nextDelayNg); }
+}
+// 直前の回答（間違えたもの）を取り消し、記録とスコアを回答前に戻して同じ問題を出し直す
+function undo() {
+  if (!Q || !Q.locked || !Q.undo) return;
+  const u = Q.undo; Q.undo = null; clearTimeout(Q.to);
+  if (u.s) stats[u.k] = u.s; else delete stats[u.k];
+  saveStats([u.k]);
+  Object.assign(Q, {ok: u.ok, streak: u.streak, best: u.best, missed: u.missed}); Q.times.length = u.times;
+  render(Q.q);
+  $('#announce').textContent = '取り消しました。もう一度答えてください';
 }
 function next() {
   if (!Q) return;
@@ -383,7 +396,7 @@ function finish() {
   show('result');
 }
 $('#quiz').addEventListener('click', e => {
-  if (e.target.closest('#quitBtn, #speakBtn')) return;
+  if (e.target.closest('#quitBtn, #speakBtn, #undoBtn')) return;
   if (Q && Q.locked && performance.now() - Q.lockedAt > CONFIG.tapGuard) next();
 });
 // 別アプリ・別タブにいた間は回答時間に数えない（戻った瞬間に時間切れにしない）
@@ -395,6 +408,7 @@ document.addEventListener('visibilitychange', () => {
   if (!Q.locked && away > 0) { Q.qt0 += away; startTimer(); }
 });
 $('#quitBtn').onclick = quit;
+$('#undoBtn').onclick = undo;
 $('#speakBtn').onclick = () => Q && speak(Q.q.it.w);
 $('#retryMissed').onclick = () => { if (Q) start(shuffle(Q.missed.slice())); };
 $('#againBtn').onclick = startNew;
@@ -515,6 +529,7 @@ document.addEventListener('keydown', e => {
     if (/^[1-4]$/.test(e.key)) { answer(+e.key - 1); e.preventDefault(); }
     else if (e.key === 'Enter' || e.key === ' ') { if (Q && Q.locked) next(); e.preventDefault(); }
     else if (e.key === 'Escape') quit();
+    else if (e.key === 'z' || e.key === 'Z' || e.key === 'Backspace') { undo(); e.preventDefault(); }
   } else if (e.key === 'Enter' && e.target.closest && e.target.closest('button, a')) {
     // フォーカス中のボタンの Enter はそのボタンに任せる（奪ってスタートしない）
   } else if (!$('#home').hidden && e.key === 'Enter') { startNew(); e.preventDefault(); }
