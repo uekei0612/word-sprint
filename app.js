@@ -198,6 +198,9 @@ function renderHome() {
   });
   const cur = curDeck(); renderDecks(cur);
   $('#startBtn').textContent = `「${cur.name}」でスタート`;
+  // 設定はデッキの下にあるので、今の設定をボタンの下に出す
+  const opt = k => (CONFIG.options[k].find(([v]) => v === settings[k]) || [])[1];
+  $('#startInfo').textContent = `${opt('dir')} ・ ${settings.count ? opt('count') + '問' : '全問'} ・ 制限時間 ${opt('limit')}`;
   const {seen, master, c, w, weak} = deckStats(cur.words);
   const acc = c + w ? Math.round(c / (c + w) * 100) + '%' : '—';
   $('#homeStats').innerHTML =

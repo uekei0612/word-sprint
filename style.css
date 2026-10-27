@@ -31,6 +31,8 @@ h2{font-size:18px;margin:0 0 8px}
 .tiles b{display:block;font-size:22px;font-variant-numeric:tabular-nums}
 .tiles small{color:var(--muted);font-size:12px}
 .links{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+.start{margin:0 0 16px}
+.start .btn.big{margin-top:0}
 .sec-title{margin:4px 4px 8px;font-size:14px;font-weight:700;color:var(--muted)}
 .decks{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:12px}
 @media(min-width:560px){.decks{grid-template-columns:repeat(3,1fr)}}
