@@ -1,7 +1,7 @@
 // 内蔵デッキ「TOEIC 300・頻出」。1 行 1 語で「単語|品詞|意味」、品詞は n / v / adj / adv / phr（熟語）。無ければ空でよい
 // 4 列目以降は「例文|例文の和訳|例文中で強調する語形」。今のアプリは読まない（例文表示の実装待ち）
 (window.WORD_SPRINT_DECKS = window.WORD_SPRINT_DECKS || []).push({
-  id: 'toeic300-core', name: 'TOEIC 300・頻出', desc: 'TOEIC 600〜800点の目安。例文つき',
+  id: 'toeic300-core', group: 'TOEIC', name: 'TOEIC 300・頻出', desc: 'TOEIC 600〜800点の目安。例文つき',
   raw: `
 accommodate|v|収容する、対応する|The hotel can accommodate up to 300 guests.|そのホテルは最大300名の宿泊客を収容できる。|accommodate
 acquire|v|取得する、買収する|The firm acquired a smaller competitor last year.|その会社は昨年、小規模な競合他社を買収した。|acquired

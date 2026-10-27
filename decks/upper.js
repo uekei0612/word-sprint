@@ -1,6 +1,6 @@
 // 内蔵デッキ「中上級」。1 行 1 語で「単語|品詞|意味」、品詞は n / v / adj / adv / phr（熟語）。無ければ空でよい
 (window.WORD_SPRINT_DECKS = window.WORD_SPRINT_DECKS || []).push({
-  id: 'upper', name: '中上級', desc: '英検2級〜準1級の目安。論説・ビジネスの重要語',
+  id: 'upper', group: 'レベル別', name: '中上級', desc: '英検2級〜準1級の目安。論説・ビジネスの重要語',
   raw: `
 abandon|v|捨てる、放棄する
 accurate|adj|正確な

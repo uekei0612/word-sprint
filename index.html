@@ -26,32 +26,24 @@
 <section id="home">
   <header class="hero">
     <h1>Word <span>Sprint</span></h1>
-    <p class="muted">4択で英単語を高速周回。苦手な単語ほどよく出ます。</p>
+    <p class="muted tagline">4択で英単語を高速周回。苦手な単語ほどよく出ます。</p>
   </header>
-  <div class="start">
+  <!-- 毎回使うもの（今のデッキ・進み具合・スタート・設定の要約）だけをホームに置き、
+       デッキ選びと設定・バックアップはダイアログに畳む -->
+  <div class="card current">
+    <div class="cur-head">
+      <div class="cur-title"><div class="cur-name" id="curName"></div><div class="cur-desc" id="curDesc"></div></div>
+      <button class="btn ghost small" id="deckChange" aria-haspopup="dialog">デッキを変更 ›</button>
+    </div>
+    <div class="cur-stats" id="curStats"></div>
+    <div class="bar" aria-hidden="true"><i id="curBar"></i></div>
     <button id="startBtn" class="btn primary big">スタート</button>
-    <p class="hint" id="startInfo"></p>
+    <button id="weakBtn" class="btn big" hidden></button>
+    <div class="chips" id="chips">
+      <button class="chip icon-chip" id="settingsBtn" aria-haspopup="dialog" aria-label="設定とバックアップ">⚙</button>
+    </div>
   </div>
-  <div class="sec-title">デッキを選ぶ</div>
-  <div class="decks" id="decks"></div>
-  <div class="card">
-    <div class="row"><label>出題</label>
-      <div class="seg" data-key="dir"></div></div>
-    <div class="row"><label>問題数</label>
-      <div class="seg" data-key="count"></div></div>
-    <div class="row"><label>制限時間</label>
-      <div class="seg" data-key="limit"></div></div>
-    <div class="row"><label>自動発音</label>
-      <div class="seg" data-key="speak"></div></div>
-    <p class="hint">キーボード：1〜4で回答 ／ Enterで次へ ／ Escで中断</p>
-  </div>
-  <div class="card" id="homeStats"></div>
-  <div class="links">
-    <button class="btn ghost" id="exportBtn">学習記録を書き出す</button>
-    <label class="btn ghost">学習記録を読み込む<input type="file" id="importFile" accept=".json,application/json" hidden></label>
-    <button class="btn ghost" id="resetBtn">学習記録をリセット</button>
-  </div>
-  <p class="hint">記録はこの端末のブラウザにだけ保存されます。機種変更やアプリの削除に備えて、ときどき書き出してください。</p>
+  <p class="hint kbd-hint">キーボード：Enterでスタート ／ 1〜4で回答 ／ Enterで次へ ／ Escで中断</p>
 </section>
 
 <section id="quiz" hidden>
@@ -112,6 +104,28 @@
   </div>
 </section>
 
+<dialog id="deckDlg" class="sheet" aria-labelledby="deckDlgTitle">
+  <div class="sheet-head"><h2 id="deckDlgTitle">デッキを選ぶ</h2><button class="btn ghost small" data-close>閉じる</button></div>
+  <div class="sheet-body" id="decks"></div>
+</dialog>
+
+<dialog id="settingsDlg" class="sheet" aria-labelledby="settingsTitle">
+  <div class="sheet-head"><h2 id="settingsTitle">設定</h2><button class="btn ghost small" data-close>閉じる</button></div>
+  <div class="sheet-body">
+    <div class="row"><label>出題</label><div class="seg" data-key="dir"></div></div>
+    <div class="row"><label>問題数</label><div class="seg" data-key="count"></div></div>
+    <div class="row"><label>制限時間</label><div class="seg" data-key="limit"></div></div>
+    <div class="row"><label>自動発音</label><div class="seg" data-key="speak"></div></div>
+    <h3>学習記録</h3>
+    <p class="note">記録はこの端末のブラウザにだけ保存されます。機種変更やアプリの削除に備えて、ときどき書き出してください。</p>
+    <div class="actions">
+      <button class="btn" id="exportBtn">学習記録を書き出す</button>
+      <label class="btn">学習記録を読み込む<input type="file" id="importFile" accept=".json,application/json" hidden></label>
+      <button class="btn danger" id="resetBtn">学習記録をリセット</button>
+    </div>
+  </div>
+</dialog>
+
 <dialog id="importDlg" aria-labelledby="importTitle">
   <h2 id="importTitle">学習記録を読み込む</h2>
   <p id="importSummary"></p>
@@ -124,11 +138,11 @@
 </dialog>
 
 </div>
-<!-- 内蔵デッキ → 本体の順に読む。並び順がホームの表示順になる。fetch ではなく script で読むので file:// でも動く -->
-<script src="decks/basic.js"></script>
+<!-- 内蔵デッキ → 本体の順に読む。並び順がデッキ一覧の表示順になる（group ごとにまとめる）。fetch ではなく script で読むので file:// でも動く -->
 <script src="decks/toeic300-basic.js"></script>
 <script src="decks/toeic300-core.js"></script>
 <script src="decks/toeic-phrases.js"></script>
+<script src="decks/basic.js"></script>
 <script src="decks/upper.js"></script>
 <script src="decks/advanced.js"></script>
 <script src="decks/it.js"></script>

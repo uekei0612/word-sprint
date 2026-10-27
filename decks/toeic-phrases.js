@@ -1,7 +1,7 @@
 // 内蔵デッキ「TOEIC 熟語」。1 行 1 語で「単語|品詞|意味」、品詞は n / v / adj / adv / phr（熟語）。無ければ空でよい
 // 4 列目以降は「例文|例文の和訳|例文中で強調する語形」。今のアプリは読まない（例文表示の実装待ち）
 (window.WORD_SPRINT_DECKS = window.WORD_SPRINT_DECKS || []).push({
-  id: 'toeic-phrases', name: 'TOEIC 熟語', desc: 'TOEIC 500〜800点の目安。例文つき',
+  id: 'toeic-phrases', group: 'TOEIC', name: 'TOEIC 熟語', desc: 'TOEIC 500〜800点の目安。例文つき',
   raw: `
 take over|phr|引き継ぐ|Ms. Lee will take over the project next month.|リーさんが来月そのプロジェクトを引き継ぐ。|take over
 carry out|phr|実行する、実施する|The survey was carried out last spring.|その調査は昨年の春に実施された。|carried out
