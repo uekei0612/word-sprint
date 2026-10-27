@@ -21,7 +21,7 @@
 <body>
 <div class="wrap">
 <div class="update-bar" id="updateBar" role="status" hidden>新しいバージョンがあります<button class="btn primary" id="updateReload">更新する</button></div>
-<div class="update-bar warn" id="saveErrBar" role="alert" hidden><span>学習記録を保存できませんでした。端末の空き容量や、プライベートブラウズになっていないかを確認してください。</span><button class="btn" id="saveErrClose">閉じる</button></div>
+<div class="update-bar warn" id="saveErrBar" role="alert" hidden><span>学習記録を保存できませんでした。端末の空き容量や、プライベートブラウズになっていないかを確認してください。</span><button class="btn" id="saveErrExport">書き出す</button><button class="btn" id="saveErrClose">閉じる</button></div>
 
 <section id="home">
   <header class="hero">
@@ -44,8 +44,11 @@
   </div>
   <div class="card" id="homeStats"></div>
   <div class="links">
+    <button class="btn ghost" id="exportBtn">学習記録を書き出す</button>
+    <label class="btn ghost">学習記録を読み込む<input type="file" id="importFile" accept=".json,application/json" hidden></label>
     <button class="btn ghost" id="resetBtn">学習記録をリセット</button>
   </div>
+  <p class="hint">記録はこの端末のブラウザにだけ保存されます。機種変更やアプリの削除に備えて、ときどき書き出してください。</p>
 </section>
 
 <section id="quiz" hidden>
@@ -105,6 +108,17 @@
     </div>
   </div>
 </section>
+
+<dialog id="importDlg" aria-labelledby="importTitle">
+  <h2 id="importTitle">学習記録を読み込む</h2>
+  <p id="importSummary"></p>
+  <div class="actions">
+    <button class="btn primary" id="importMerge">今の記録と統合する</button>
+    <button class="btn" id="importReplace">今の記録を置き換える</button>
+    <button class="btn ghost" id="importCancel">やめる</button>
+  </div>
+  <p class="hint" style="text-align:left">統合：単語ごとに回答数の多い方の記録を残し、自作デッキは足します（同じデッキは重複させません）。置き換え：今の記録・自作デッキ・設定を、ファイルの内容で置き換えます。</p>
+</dialog>
 
 </div>
 <!-- 内蔵デッキ → 本体の順に読む。並び順がホームの表示順になる。fetch ではなく script で読むので file:// でも動く -->
