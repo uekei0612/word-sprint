@@ -42,6 +42,16 @@ run(async () => {
   await p.goto(INDEX); await sleep(100);
   await p.click('#decks .deck.new'); await sleep(100);
   check('「新しいデッキ」でエディタが開く', await p.$eval('#editor', e => !e.hidden));
+  // 拡大とスクロールの固定
+  const fx = await p.evaluate(() => {
+    const ev = t => { const e = new Event(t, {cancelable: true}); document.dispatchEvent(e); return e.defaultPrevented; };
+    const h = getComputedStyle(document.documentElement);
+    return {meta: document.querySelector('meta[name=viewport]').content, touch: h.touchAction, over: h.overscrollBehaviorY, gs: ev('gesturestart'), gc: ev('gesturechange'),
+      wide: document.documentElement.scrollWidth <= innerWidth, ta: getComputedStyle(document.querySelector('#customText')).fontSize};
+  });
+  check('拡大させない（viewport・ダブルタップ・iOS のピンチ）', /user-scalable=no/.test(fx.meta) && /maximum-scale=1/.test(fx.meta) && fx.touch === 'pan-y' && fx.gs && fx.gc, JSON.stringify(fx));
+  check('端の跳ね返りと横スクロールが無い', fx.over === 'none' && fx.wide, JSON.stringify(fx));
+  check('入力欄の文字は 16px 以上（iOS が入力時に拡大しない）', parseFloat(fx.ta) >= 16, fx.ta);
   // ダークモード
   await p.emulateMediaFeatures([{name: 'prefers-color-scheme', value: 'dark'}]);
   await p.goto(INDEX); await sleep(150);
