@@ -2,7 +2,7 @@
 (() => {
 // 調整用の値はここに集める
 const CONFIG = {
-  defaults: {deck:'toeic', dir:'e2j', count:20, limit:0, speak:false},
+  defaults: {deck:'toeic300-basic', dir:'e2j', count:20, limit:0, speak:false},
   // ホームの設定ボタン。[値, 表示]
   options: {
     dir:   [['e2j', '英→日'], ['j2e', '日→英'], ['mix', 'ミックス']],
@@ -24,7 +24,7 @@ const CONFIG = {
   storagePrefix: 'wordsprint.v1.',
 };
 
-const POS = {n:'名詞', v:'動詞', adj:'形容詞', adv:'副詞'};
+const POS = {n:'名詞', v:'動詞', adj:'形容詞', adv:'副詞', phr:'熟語'};
 const parseRaw = raw => raw.trim().split('\n').map(l => { const [w,p,m] = l.split('|'); return {w, p, m}; });
 // 内蔵デッキは decks/*.js が window.WORD_SPRINT_DECKS に積む（追加方法は README）
 const BUILTIN_DECKS = (window.WORD_SPRINT_DECKS || [])
@@ -109,11 +109,29 @@ const saveDecks = () => store.set('decks', customDecks);
 const allDecks = () => [...BUILTIN_DECKS, ...customDecks];
 if (settings.deck === 'builtin') settings.deck = CONFIG.defaults.deck;
 if (settings.deck === 'custom') settings.deck = customDecks[0] ? customDecks[0].id : CONFIG.defaults.deck;
+if (settings.deck === 'toeic') settings.deck = 'toeic300-core'; // 旧「TOEIC頻出」は TOEIC 300 と「中上級」に分けた
 const canSpeak = 'speechSynthesis' in window;
 
 const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.random() * (i + 1) | 0; [a[i], a[j]] = [a[j], a[i]]; } return a; };
 const sKey = it => it.w + '\u0001' + it.m;
 const usable = d => d && d.words.length >= 4;
+// どのデッキにも無くなった記録（内蔵デッキで意味の書き方を変えた語など）を、今の書き方の記録へ移す。
+// 記録のキーは「単語＋意味」なので、そのままだと記録が外れる。内蔵デッキでのその単語の意味が
+// 1 つに決まるときだけ移し、両方に記録があれば回数を足す。移したキーを返す
+function moveStaleStats() {
+  const live = new Set(allDecks().flatMap(d => d.words.map(sKey))), meaning = new Map();
+  for (const it of BUILTIN_DECKS.flatMap(d => d.words)) meaning.set(it.w, meaning.has(it.w) && meaning.get(it.w) !== it.m ? null : it.m);
+  const changed = [];
+  for (const k of Object.keys(stats)) {
+    const w = k.slice(0, k.indexOf('\u0001')), m = meaning.get(w);
+    if (live.has(k) || !m) continue;
+    const to = sKey({w, m}), a = stats[k], b = stats[to] || {c:0, w:0}, t = Math.max(a.t || 0, b.t || 0);
+    stats[to] = t ? {c: a.c + b.c, w: a.w + b.w, t} : {c: a.c + b.c, w: a.w + b.w};
+    delete stats[k]; changed.push(k, to);
+  }
+  return changed;
+}
+{ const moved = moveStaleStats(); if (moved.length) saveStats(moved); }
 // 選択中のデッキが使えなければ既定のデッキ、それも無ければ最初の内蔵デッキ
 const curDeck = () => [settings.deck, CONFIG.defaults.deck].map(id => allDecks().find(x => x.id === id)).find(usable) || BUILTIN_DECKS.find(usable);
 const deck = () => curDeck().words;
@@ -203,14 +221,17 @@ $('#resetBtn').onclick = () => { if (confirm('学習記録（正誤履歴）を�
 
 /* ---------- quiz ---------- */
 let Q = null;
+const gloss = m => m.split(/[、，,;；/／]/).map(s => s.trim()).filter(Boolean);
 function makeQ(it, d) {
   const dir = settings.dir === 'mix' ? (Math.random() < .5 ? 'e2j' : 'j2e') : settings.dir;
   const others = d.filter(x => x.m !== it.m && x.w !== it.w);
-  let pool = it.p ? others.filter(x => x.p === it.p) : [];
-  if (pool.length < 3) pool = others;
+  // 語義が 1 つでも重なる語（「発表する」と「発表する、提示する」）は正解が 2 つに見えるので、
+  // 同じ品詞で重ならない語 → 重ならない語 → 残り、の順に選ぶ
+  const g = new Set(gloss(it.m)), apart = others.filter(x => !gloss(x.m).some(s => g.has(s)));
   const label = x => dir === 'e2j' ? x.m : x.w;
   const seen = new Set([label(it)]), picks = [];
-  for (const x of shuffle(pool.slice())) { if (seen.has(label(x))) continue; seen.add(label(x)); picks.push(x); if (picks.length === 3) break; }
+  for (const pool of [it.p ? apart.filter(x => x.p === it.p) : [], apart, others])
+    for (const x of shuffle(pool.slice())) { if (picks.length === 3) break; if (seen.has(label(x))) continue; seen.add(label(x)); picks.push(x); }
   const opts = shuffle([it, ...picks]);
   return {it, dir, opts, ans: opts.indexOf(it), label};
 }
@@ -523,6 +544,7 @@ function applyImport(mode) {
   if (!pendingImport) return;
   if (mode === 'replace' && !confirm('今の学習記録・自作デッキ・設定を、ファイルの内容で置き換えます。よろしいですか？')) return;
   (mode === 'merge' ? mergeBackup : replaceBackup)(pendingImport);
+  moveStaleStats(); // 古い版で書き出したファイルには、意味の書き方を変える前の記録が入っている
   pendingImport = null; $('#importDlg').close();
   saveStats(); saveDecks(); store.set('settings', settings);
   renderHome(); show('home');
