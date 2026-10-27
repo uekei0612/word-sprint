@@ -169,6 +169,9 @@ function speak(t) {
 }
 // 新しい版がそろったら（service worker の 'updated'）、再読み込みして自動で切り替える。
 // クイズ・編集・ダイアログの途中で読み込み直すと答えや入力が消えるので、ホームに戻るまで待つ
+// ピンチ拡大を止める。iOS の Safari・ホーム画面アプリは viewport の user-scalable=no を無視するので、ジェスチャーごと止める
+for (const t of ['gesturestart', 'gesturechange']) document.addEventListener(t, e => e.preventDefault());
+document.addEventListener('touchmove', e => { if (e.touches.length > 1) e.preventDefault(); }, {passive: false});
 let updateReady = false;
 function reloadIfIdle() {
   if (updateReady && !$('#home').hidden && !document.querySelector('dialog[open]')) location.reload();
