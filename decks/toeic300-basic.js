@@ -1,7 +1,7 @@
-// 内蔵デッキ「TOEIC 300・基礎」。1 行 1 語で「単語|品詞|意味」、品詞は n / v / adj / adv（無ければ空でよい）
+// 内蔵デッキ「TOEIC 300・基礎」。1 行 1 語で「単語|品詞|意味」、品詞は n / v / adj / adv / phr（熟語）。無ければ空でよい
 // 4 列目以降は「例文|例文の和訳|例文中で強調する語形」。今のアプリは読まない（例文表示の実装待ち）
 (window.WORD_SPRINT_DECKS = window.WORD_SPRINT_DECKS || []).push({
-  id: 'toeic300-basic', name: 'TOEIC 300・基礎', desc: '400〜600点の目安。例文つき',
+  id: 'toeic300-basic', group: 'TOEIC', name: 'TOEIC 300・基礎', desc: 'TOEIC 400〜600点の目安。例文つき',
   raw: `
 accept|v|受け入れる|We accept all major credit cards.|主要なクレジットカードはすべてご利用いただけます。|accept
 additional|adj|追加の|There is no additional charge for delivery.|配達に追加料金はかかりません。|additional

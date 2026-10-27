@@ -1,12 +1,12 @@
-// 内蔵デッキ「上級」。1 行 1 語で「単語|品詞|意味」、品詞は n / v / adj / adv（無ければ空でよい）
+// 内蔵デッキ「上級」。1 行 1 語で「単語|品詞|意味」、品詞は n / v / adj / adv / phr（熟語）。無ければ空でよい
 (window.WORD_SPRINT_DECKS = window.WORD_SPRINT_DECKS || []).push({
-  id: 'advanced', name: '上級', desc: '英検準1級〜1級レベル',
+  id: 'advanced', group: 'レベル別', name: '上級', desc: '英検準1級〜1級の目安。抽象語・論説語',
   raw: `
 ambiguity|n|曖昧さ
 consensus|n|合意、総意
 discrepancy|n|食い違い、矛盾
 dilemma|n|板挟み、ジレンマ
-incentive|n|動機付け、誘因
+incentive|n|奨励金、動機付け
 hypothesis|n|仮説
 scrutiny|n|精査
 catalyst|n|触媒、きっかけ
@@ -23,7 +23,7 @@ compel|v|強いる
 contemplate|v|熟考する
 deteriorate|v|悪化する
 discern|v|見分ける
-endorse|v|支持する、承認する
+endorse|v|支持する、推薦する
 fabricate|v|でっち上げる
 hinder|v|妨げる
 infer|v|推論する

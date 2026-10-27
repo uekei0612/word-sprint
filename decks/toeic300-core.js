@@ -1,7 +1,7 @@
-// 内蔵デッキ「TOEIC 300・頻出」。1 行 1 語で「単語|品詞|意味」、品詞は n / v / adj / adv（無ければ空でよい）
+// 内蔵デッキ「TOEIC 300・頻出」。1 行 1 語で「単語|品詞|意味」、品詞は n / v / adj / adv / phr（熟語）。無ければ空でよい
 // 4 列目以降は「例文|例文の和訳|例文中で強調する語形」。今のアプリは読まない（例文表示の実装待ち）
 (window.WORD_SPRINT_DECKS = window.WORD_SPRINT_DECKS || []).push({
-  id: 'toeic300-core', name: 'TOEIC 300・頻出', desc: '600〜800点の目安。例文つき',
+  id: 'toeic300-core', group: 'TOEIC', name: 'TOEIC 300・頻出', desc: 'TOEIC 600〜800点の目安。例文つき',
   raw: `
 accommodate|v|収容する、対応する|The hotel can accommodate up to 300 guests.|そのホテルは最大300名の宿泊客を収容できる。|accommodate
 acquire|v|取得する、買収する|The firm acquired a smaller competitor last year.|その会社は昨年、小規模な競合他社を買収した。|acquired
@@ -79,7 +79,7 @@ fulfill|v|果たす、満たす|We fulfill orders within two business days.|注�
 generate|v|生み出す|The campaign generated a lot of interest.|そのキャンペーンは大きな関心を生んだ。|generated
 headquarters|n|本社|The headquarters is located in Chicago.|本社はシカゴにある。|headquarters
 implement|v|実施する、導入する|The policy will be implemented next month.|その方針は来月実施される。|implemented
-incentive|n|奨励金、動機|The company offers incentives for top sellers.|会社は販売上位者に報奨金を出す。|incentives
+incentive|n|奨励金、動機付け|The company offers incentives for top sellers.|会社は販売上位者に報奨金を出す。|incentives
 incur|v|（費用・損失を）負う|Any costs incurred will be reimbursed.|発生した費用はすべて払い戻される。|incurred
 inquiry|n|問い合わせ|Thank you for your inquiry about our services.|当社サービスへのお問い合わせありがとうございます。|inquiry
 inspect|v|検査する|Inspectors inspect the equipment monthly.|検査官は毎月設備を点検する。|inspect

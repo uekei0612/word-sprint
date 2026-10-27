@@ -21,30 +21,29 @@
 <body>
 <div class="wrap">
 <div class="update-bar" id="updateBar" role="status" hidden>新しいバージョンがあります<button class="btn primary" id="updateReload">更新する</button></div>
+<div class="update-bar warn" id="saveErrBar" role="alert" hidden><span>学習記録を保存できませんでした。端末の空き容量や、プライベートブラウズになっていないかを確認してください。</span><button class="btn" id="saveErrExport">書き出す</button><button class="btn" id="saveErrClose">閉じる</button></div>
 
 <section id="home">
   <header class="hero">
     <h1>Word <span>Sprint</span></h1>
-    <p class="muted">4択で英単語を高速周回。苦手な単語ほどよく出ます。</p>
+    <p class="muted tagline">4択で英単語を高速周回。苦手な単語ほどよく出ます。</p>
   </header>
-  <div class="sec-title">デッキを選ぶ</div>
-  <div class="decks" id="decks"></div>
-  <div class="card">
-    <div class="row"><label>出題</label>
-      <div class="seg" data-key="dir"></div></div>
-    <div class="row"><label>問題数</label>
-      <div class="seg" data-key="count"></div></div>
-    <div class="row"><label>制限時間</label>
-      <div class="seg" data-key="limit"></div></div>
-    <div class="row"><label>自動発音</label>
-      <div class="seg" data-key="speak"></div></div>
+  <!-- 毎回使うもの（今のデッキ・進み具合・スタート・設定の要約）だけをホームに置き、
+       デッキ選びと設定・バックアップはダイアログに畳む -->
+  <div class="card current">
+    <div class="cur-head">
+      <div class="cur-title"><h2 class="cur-name" id="curName" tabindex="-1"></h2><div class="cur-desc" id="curDesc"></div></div>
+      <button class="btn ghost small" id="deckChange" aria-haspopup="dialog">デッキを変更 ›</button>
+    </div>
+    <div class="cur-stats" id="curStats"></div>
+    <div class="bar" aria-hidden="true"><i id="curBar"></i></div>
     <button id="startBtn" class="btn primary big">スタート</button>
-    <p class="hint">キーボード：1〜4で回答 ／ Enterで次へ ／ Escで中断</p>
+    <button id="weakBtn" class="btn big" hidden></button>
+    <div class="chips" id="chips">
+      <button class="chip icon-chip" id="settingsBtn" aria-haspopup="dialog" aria-label="設定とバックアップ">⚙</button>
+    </div>
   </div>
-  <div class="card" id="homeStats"></div>
-  <div class="links">
-    <button class="btn ghost" id="resetBtn">学習記録をリセット</button>
-  </div>
+  <p class="hint kbd-hint">キーボード：Enterでスタート ／ 1〜4で回答 ／ Enterで次へ ／ Zで取り消し ／ Escで中断</p>
 </section>
 
 <section id="quiz" hidden>
@@ -54,7 +53,7 @@
     <span id="counter"></span>
   </div>
   <div class="meta"><span id="streak"></span><span id="score"></span></div>
-  <div class="card qcard" id="qcard">
+  <div class="card qcard" id="qcard" tabindex="-1">
     <button class="speak" id="speakBtn" aria-label="発音">🔊</button>
     <div class="qdir" id="qdir"></div>
     <div class="prompt" id="prompt"></div>
@@ -63,16 +62,19 @@
   </div>
   <div class="choices" id="choices"></div>
   <p class="tap-next" id="tapNext" hidden>タップ / Enter で次へ</p>
+  <p class="undo" id="undoBox" hidden><button class="btn ghost" id="undoBtn">押し間違えたら取り消す<span class="kbd-hint">（Z）</span></button></p>
+  <p class="sr-only" id="announce" aria-live="assertive"></p>
 </section>
 
 <section id="result" hidden>
   <div class="card">
-    <div class="big-score" id="rScore"></div>
+    <div class="big-score" id="rScore" tabindex="-1"></div>
     <div class="tiles">
       <div><b id="rAcc"></b><small>正答率</small></div>
       <div><b id="rAvg"></b><small>平均 / 問</small></div>
       <div><b id="rBest"></b><small>最高連続</small></div>
     </div>
+    <p class="hint" id="rRelearn"></p>
   </div>
   <div class="card" id="missedCard">
     <h2>間違えた単語</h2>
@@ -87,7 +89,7 @@
 
 <section id="editor" hidden>
   <div class="card">
-    <h2 id="editTitle">新しいデッキ</h2>
+    <h2 id="editTitle" tabindex="-1">新しいデッキ</h2>
     <input type="text" id="deckName" placeholder="デッキ名（例：英検2級 単語帳）" maxlength="40">
     <p class="muted" style="font-size:14px;margin:6px 0 4px">1行に1語、「英単語,意味」の形式で入力します。タブ区切りや「|」区切りも使えるので、Excel・スプレッドシートの2列をそのまま貼り付けられます。4語以上必要です。</p>
     <div class="edit-bar">
@@ -105,12 +107,46 @@
   </div>
 </section>
 
+<dialog id="deckDlg" class="sheet" aria-labelledby="deckDlgTitle">
+  <div class="sheet-head"><h2 id="deckDlgTitle">デッキを選ぶ</h2><button class="btn ghost small" data-close>閉じる</button></div>
+  <div class="sheet-body" id="decks"></div>
+</dialog>
+
+<dialog id="settingsDlg" class="sheet" aria-labelledby="settingsTitle">
+  <div class="sheet-head"><h2 id="settingsTitle">設定</h2><button class="btn ghost small" data-close>閉じる</button></div>
+  <div class="sheet-body">
+    <div class="row"><span class="row-label" id="lblDir">出題</span><div class="seg" data-key="dir" role="group" aria-labelledby="lblDir"></div></div>
+    <div class="row"><span class="row-label" id="lblCount">問題数</span><div class="seg" data-key="count" role="group" aria-labelledby="lblCount"></div></div>
+    <div class="row"><span class="row-label" id="lblLimit">制限時間</span><div class="seg" data-key="limit" role="group" aria-labelledby="lblLimit"></div></div>
+    <div class="row"><span class="row-label" id="lblSpeak">自動発音</span><div class="seg" data-key="speak" role="group" aria-labelledby="lblSpeak"></div></div>
+    <h3>学習記録</h3>
+    <p class="note">記録はこの端末のブラウザにだけ保存されます。機種変更やアプリの削除に備えて、ときどき書き出してください。</p>
+    <div class="actions">
+      <button class="btn" id="exportBtn">学習記録を書き出す</button>
+      <label class="btn">学習記録を読み込む<input type="file" id="importFile" accept=".json,application/json" hidden></label>
+      <button class="btn danger" id="resetBtn">学習記録をリセット</button>
+    </div>
+  </div>
+</dialog>
+
+<dialog id="importDlg" aria-labelledby="importTitle">
+  <h2 id="importTitle">学習記録を読み込む</h2>
+  <p id="importSummary"></p>
+  <div class="actions">
+    <button class="btn primary" id="importMerge">今の記録と統合する</button>
+    <button class="btn" id="importReplace">今の記録を置き換える</button>
+    <button class="btn ghost" id="importCancel">やめる</button>
+  </div>
+  <p class="hint" style="text-align:left">統合：単語ごとに回答数の多い方の記録を残し、自作デッキは足します（同じデッキは重複させません）。置き換え：今の記録・自作デッキ・設定を、ファイルの内容で置き換えます。</p>
+</dialog>
+
 </div>
-<!-- 内蔵デッキ → 本体の順に読む。並び順がホームの表示順になる。fetch ではなく script で読むので file:// でも動く -->
-<script src="decks/basic.js"></script>
+<!-- 内蔵デッキ → 本体の順に読む。並び順がデッキ一覧の表示順になる（group ごとにまとめる）。fetch ではなく script で読むので file:// でも動く -->
 <script src="decks/toeic300-basic.js"></script>
 <script src="decks/toeic300-core.js"></script>
-<script src="decks/toeic.js"></script>
+<script src="decks/toeic-phrases.js"></script>
+<script src="decks/basic.js"></script>
+<script src="decks/upper.js"></script>
 <script src="decks/advanced.js"></script>
 <script src="decks/it.js"></script>
 <script src="app.js"></script>
