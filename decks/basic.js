@@ -1,6 +1,6 @@
-// 内蔵デッキ「中学基礎」。1 行 1 語で「単語|品詞|意味」、品詞は n / v / adj / adv（無ければ空でよい）
+// 内蔵デッキ「中学基礎」。1 行 1 語で「単語|品詞|意味」、品詞は n / v / adj / adv / phr（熟語）。無ければ空でよい
 (window.WORD_SPRINT_DECKS = window.WORD_SPRINT_DECKS || []).push({
-  id: 'basic', name: '中学基礎', desc: '日常の基本語から',
+  id: 'basic', name: '中学基礎', desc: '英検3級の目安。日常の基本語',
   raw: `
 family|n|家族
 friend|n|友達

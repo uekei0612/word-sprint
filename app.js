@@ -2,7 +2,7 @@
 (() => {
 // 調整用の値はここに集める
 const CONFIG = {
-  defaults: {deck:'toeic', dir:'e2j', count:20, limit:0, speak:false},
+  defaults: {deck:'toeic300-basic', dir:'e2j', count:20, limit:0, speak:false},
   // ホームの設定ボタン。[値, 表示]
   options: {
     dir:   [['e2j', '英→日'], ['j2e', '日→英'], ['mix', 'ミックス']],
@@ -24,7 +24,7 @@ const CONFIG = {
   storagePrefix: 'wordsprint.v1.',
 };
 
-const POS = {n:'名詞', v:'動詞', adj:'形容詞', adv:'副詞'};
+const POS = {n:'名詞', v:'動詞', adj:'形容詞', adv:'副詞', phr:'熟語'};
 const parseRaw = raw => raw.trim().split('\n').map(l => { const [w,p,m] = l.split('|'); return {w, p, m}; });
 // 内蔵デッキは decks/*.js が window.WORD_SPRINT_DECKS に積む（追加方法は README）
 const BUILTIN_DECKS = (window.WORD_SPRINT_DECKS || [])
@@ -109,11 +109,29 @@ const saveDecks = () => store.set('decks', customDecks);
 const allDecks = () => [...BUILTIN_DECKS, ...customDecks];
 if (settings.deck === 'builtin') settings.deck = CONFIG.defaults.deck;
 if (settings.deck === 'custom') settings.deck = customDecks[0] ? customDecks[0].id : CONFIG.defaults.deck;
+if (settings.deck === 'toeic') settings.deck = 'toeic300-core'; // 旧「TOEIC頻出」は TOEIC 300 と「中上級」に分けた
 const canSpeak = 'speechSynthesis' in window;
 
 const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.random() * (i + 1) | 0; [a[i], a[j]] = [a[j], a[i]]; } return a; };
 const sKey = it => it.w + '\u0001' + it.m;
 const usable = d => d && d.words.length >= 4;
+// どのデッキにも無くなった記録（内蔵デッキで意味の書き方を変えた語など）を、今の書き方の記録へ移す。
+// 記録のキーは「単語＋意味」なので、そのままだと記録が外れる。内蔵デッキでのその単語の意味が
+// 1 つに決まるときだけ移し、両方に記録があれば回数を足す。移したキーを返す
+function moveStaleStats() {
+  const live = new Set(allDecks().flatMap(d => d.words.map(sKey))), meaning = new Map();
+  for (const it of BUILTIN_DECKS.flatMap(d => d.words)) meaning.set(it.w, meaning.has(it.w) && meaning.get(it.w) !== it.m ? null : it.m);
+  const changed = [];
+  for (const k of Object.keys(stats)) {
+    const w = k.slice(0, k.indexOf('\u0001')), m = meaning.get(w);
+    if (live.has(k) || !m) continue;
+    const to = sKey({w, m}), a = stats[k], b = stats[to] || {c:0, w:0}, t = Math.max(a.t || 0, b.t || 0);
+    stats[to] = t ? {c: a.c + b.c, w: a.w + b.w, t} : {c: a.c + b.c, w: a.w + b.w};
+    delete stats[k]; changed.push(k, to);
+  }
+  return changed;
+}
+{ const moved = moveStaleStats(); if (moved.length) saveStats(moved); }
 // 選択中のデッキが使えなければ既定のデッキ、それも無ければ最初の内蔵デッキ
 const curDeck = () => [settings.deck, CONFIG.defaults.deck].map(id => allDecks().find(x => x.id === id)).find(usable) || BUILTIN_DECKS.find(usable);
 const deck = () => curDeck().words;
@@ -526,6 +544,7 @@ function applyImport(mode) {
   if (!pendingImport) return;
   if (mode === 'replace' && !confirm('今の学習記録・自作デッキ・設定を、ファイルの内容で置き換えます。よろしいですか？')) return;
   (mode === 'merge' ? mergeBackup : replaceBackup)(pendingImport);
+  moveStaleStats(); // 古い版で書き出したファイルには、意味の書き方を変える前の記録が入っている
   pendingImport = null; $('#importDlg').close();
   saveStats(); saveDecks(); store.set('settings', settings);
   renderHome(); show('home');

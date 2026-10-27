@@ -1,6 +1,6 @@
-// 内蔵デッキ「IT・エンジニア」。1 行 1 語で「単語|品詞|意味」、品詞は n / v / adj / adv（無ければ空でよい）
+// 内蔵デッキ「IT・エンジニア」。1 行 1 語で「単語|品詞|意味」、品詞は n / v / adj / adv / phr（熟語）。無ければ空でよい
 (window.WORD_SPRINT_DECKS = window.WORD_SPRINT_DECKS || []).push({
-  id: 'it', name: 'IT・エンジニア', desc: '開発・運用の現場で使う語',
+  id: 'it', name: 'IT・エンジニア', desc: '分野別。開発・運用の現場で使う語',
   raw: `
 dependency|n|依存関係
 deployment|n|デプロイ、展開
@@ -40,7 +40,7 @@ isolate|v|切り分ける、隔離する
 escalate|v|上位に引き継ぐ、エスカレーションする
 refactor|v|リファクタリングする
 validate|v|妥当性を検証する
-terminate|v|終了させる
+terminate|v|終了させる、解除する
 initialize|v|初期化する
 invoke|v|呼び出す
 override|v|上書きする
