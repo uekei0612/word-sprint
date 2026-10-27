@@ -60,6 +60,12 @@
     <div class="timer" id="timer"><div id="timerBar"></div></div>
   </div>
   <div class="choices" id="choices"></div>
+  <!-- 回答後の例文。選択肢の下に出し、選択肢の位置を動かさない（押し間違いを招かない） -->
+  <div class="card example" id="example" hidden>
+    <button class="speak" id="exSpeak" aria-label="例文を読み上げる">🔊</button>
+    <p class="ex-en" id="exEn" lang="en"></p>
+    <p class="ex-ja" id="exJa"></p>
+  </div>
   <p class="tap-next" id="tapNext" hidden>タップ / Enter で次へ</p>
   <p class="undo" id="undoBox" hidden><button class="btn ghost" id="undoBtn">押し間違えたら取り消す<span class="kbd-hint">（Z）</span></button></p>
   <p class="sr-only" id="announce" aria-live="assertive"></p>
@@ -90,7 +96,7 @@
   <div class="card">
     <h2 id="editTitle" tabindex="-1">新しいデッキ</h2>
     <input type="text" id="deckName" placeholder="デッキ名（例：英検2級 単語帳）" maxlength="40">
-    <p class="muted" style="font-size:14px;margin:6px 0 4px">1行に1語、「英単語,意味」の形式で入力します。タブ区切りや「|」区切りも使えるので、Excel・スプレッドシートの2列をそのまま貼り付けられます。4語以上必要です。</p>
+    <p class="muted" style="font-size:14px;margin:6px 0 4px">1行に1語、「英単語,意味」の形式で入力します。タブ区切りや「|」区切りも使えるので、Excel・スプレッドシートの2列をそのまま貼り付けられます。3・4列目に「例文,和訳」を書くと、答えたあとに例文を出します（例文に , を含むときは "…" で囲みます）。4語以上必要です。</p>
     <div class="edit-bar">
       <label class="btn">ファイル読込<input type="file" id="fileIn" accept=".csv,.tsv,.txt" hidden></label>
       <button class="btn ghost" id="sampleBtn">例を挿入</button>
@@ -118,6 +124,8 @@
     <div class="row"><span class="row-label" id="lblCount">問題数</span><div class="seg" data-key="count" role="group" aria-labelledby="lblCount"></div></div>
     <div class="row"><span class="row-label" id="lblLimit">制限時間</span><div class="seg" data-key="limit" role="group" aria-labelledby="lblLimit"></div></div>
     <div class="row"><span class="row-label" id="lblSpeak">自動発音</span><div class="seg" data-key="speak" role="group" aria-labelledby="lblSpeak"></div></div>
+    <div class="row"><span class="row-label" id="lblExample">例文</span><div class="seg" data-key="example" role="group" aria-labelledby="lblExample"></div></div>
+    <p class="note">例文のあるデッキ（TOEIC 300・TOEIC 熟語）で、答えたあとに例文と和訳を出します。例文を出したときは、タップ / Enter で次へ進みます。</p>
     <h3>学習記録</h3>
     <p class="note">記録はこの端末のブラウザにだけ保存されます。機種変更やアプリの削除に備えて、ときどき書き出してください。</p>
     <div class="actions">

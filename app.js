@@ -2,13 +2,15 @@
 (() => {
 // 調整用の値はここに集める
 const CONFIG = {
-  defaults: {deck:'toeic300-basic', dir:'e2j', count:20, limit:0, speak:false},
+  defaults: {deck:'toeic300-basic', dir:'e2j', count:20, limit:0, speak:false, example:'ng'},
   // 設定の選択肢。[値, 表示]。ホームのチップは押すたびに次の値へ回る
   options: {
     dir:   [['e2j', '英→日'], ['j2e', '日→英'], ['mix', 'ミックス']],
     count: [[10, '10'], [20, '20'], [50, '50'], [0, '全部']],
     limit: [[0, 'なし'], [5, '5秒'], [3, '3秒']],
     speak: [[false, 'オフ'], [true, 'オン']],
+    // 例文を出す場面。出したときは自動で次へ進まず、タップ / Enter を待つ（読む時間を取る）
+    example: [['ng', '間違えたとき'], ['all', '毎回'], ['off', '出さない']],
   },
   nextDelayOk: 380,    // 正解後、次の問題へ進むまで（ms）
   nextDelayNg: 1800,   // 不正解後、次の問題へ進むまで（ms）
@@ -27,7 +29,12 @@ const CONFIG = {
 };
 
 const POS = {n:'名詞', v:'動詞', adj:'形容詞', adv:'副詞', phr:'熟語'};
-const parseRaw = raw => raw.trim().split('\n').map(l => { const [w,p,m] = l.split('|'); return {w, p, m}; });
+// 4〜6 列目は例文・和訳・例文中で強調する語形（無い行もある）
+const parseRaw = raw => raw.trim().split('\n').map(l => {
+  const [w, p, m, e, j, b] = l.split('|'), it = {w, p, m};
+  if (e) Object.assign(it, {e, j: j || '', b: b || ''});
+  return it;
+});
 // 内蔵デッキは decks/*.js が window.WORD_SPRINT_DECKS に積む（追加方法は README）
 const BUILTIN_DECKS = (window.WORD_SPRINT_DECKS || [])
   .map(d => ({id:d.id, name:d.name, desc:d.desc, group:d.group || 'その他', builtin:true, words:parseRaw(d.raw)}));
@@ -70,7 +77,14 @@ const CHECK = {
       if (!isObj(d) || typeof d.id !== 'string' || typeof d.name !== 'string' || !Array.isArray(d.words)) { ok = false; continue; }
       const words = d.words.filter(x => isObj(x) && typeof x.w === 'string' && x.w && typeof x.m === 'string' && x.m);
       if (words.length !== d.words.length) ok = false;
-      value.push({...d, words: words.map(x => typeof x.p === 'string' ? x : {...x, p: ''})});
+      // 例文（e・j・b）は文字列のときだけ残す。壊れていても単語そのものは使えるので ok は落とさない
+      const fix = x => {
+        const y = typeof x.p === 'string' ? {...x} : {...x, p: ''};
+        if (typeof y.e !== 'string' || !y.e) { delete y.e; delete y.j; delete y.b; }
+        else { if (typeof y.j !== 'string') y.j = ''; if (typeof y.b !== 'string') y.b = ''; }
+        return y;
+      };
+      value.push({...d, words: words.map(fix)});
     }
     return {value, ok};
   },
@@ -318,7 +332,7 @@ function render(keep) {
     b.addEventListener('click', () => answer(i));
     box.appendChild(b);
   });
-  $('#tapNext').hidden = true; $('#undoBox').hidden = true;
+  $('#tapNext').hidden = true; $('#undoBox').hidden = true; $('#example').hidden = true;
   $('#qcard').classList.remove('ok', 'ng');
   $('#streak').textContent = Q.streak >= CONFIG.streakShow ? `🔥 ${Q.streak}連続` : '';
   $('#score').textContent = `正解 ${Q.ok}`;
@@ -369,8 +383,32 @@ function answer(i) {
   $('#announce').textContent = ok ? '正解' : `${i < 0 ? '時間切れ' : '不正解'}。正解は ${Q.q.label(it)}`;
   $('#score').textContent = `正解 ${Q.ok}`;
   if (settings.speak && dir === 'j2e') speak(it.w);
-  if (ok) Q.to = setTimeout(next, CONFIG.nextDelayOk);
-  else { $('#tapNext').hidden = false; $('#undoBox').hidden = !Q.undo; Q.to = setTimeout(next, CONFIG.nextDelayNg); }
+  $('#undoBox').hidden = !Q.undo;
+  // 例文を出したときは読み終わるまで待つ。出さないときは今までどおり自動で次へ
+  if (showExample(it, ok)) $('#tapNext').hidden = false;
+  else if (ok) Q.to = setTimeout(next, CONFIG.nextDelayOk);
+  else { $('#tapNext').hidden = false; Q.to = setTimeout(next, CONFIG.nextDelayNg); }
+}
+// 例文の英文を、強調する語形（b。無ければ単語そのもの）を <mark> にして el に入れる。見つからなければそのまま
+function fillExample(el, it) {
+  const t = it.e, b = it.b || it.w;
+  // 語の途中（accept と acceptable）に当てないよう、まず語の切れ目で探す
+  const m = t.match(new RegExp('\\b' + b.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'i'));
+  const at = m ? m.index : t.indexOf(b);
+  el.textContent = '';
+  if (at < 0) { el.textContent = t; return; }
+  const mk = document.createElement('mark'); mk.textContent = t.slice(at, at + b.length);
+  el.append(t.slice(0, at), mk, t.slice(at + b.length));
+}
+// 回答後の例文。設定と正誤で出すか決め、出したら true
+function showExample(it, ok) {
+  const on = it.e && (settings.example === 'all' || (settings.example === 'ng' && !ok));
+  $('#example').hidden = !on;
+  if (!on) return false;
+  fillExample($('#exEn'), it); $('#exJa').textContent = it.j;
+  $('#exSpeak').hidden = !canSpeak;
+  $('#announce').textContent += `。例文：${it.e}${it.j ? '　' + it.j : ''}`;
+  return true;
 }
 // 間違えた語を gap 問後に差し込む。残りが gap 問より少なければ最後に出す
 function relearnLater(it) {
@@ -417,6 +455,12 @@ function finish() {
     const li = document.createElement('li');
     li.innerHTML = '<b></b><span></span>';
     li.firstChild.textContent = it.w; li.firstChild.lang = 'en'; li.lastChild.textContent = it.m;
+    if (it.e) {
+      const ex = document.createElement('div'); ex.className = 'ex';
+      ex.innerHTML = '<span class="ex-en" lang="en"></span><span class="ex-ja"></span>';
+      fillExample(ex.firstChild, it); ex.lastChild.textContent = it.j;
+      li.appendChild(ex);
+    }
     if (canSpeak) { li.style.cursor = 'pointer'; li.onclick = () => speak(it.w); }
     ul.appendChild(li);
   }
@@ -425,7 +469,7 @@ function finish() {
   show('result');
 }
 $('#quiz').addEventListener('click', e => {
-  if (e.target.closest('#quitBtn, #speakBtn, #undoBtn')) return;
+  if (e.target.closest('#quitBtn, #speakBtn, #undoBtn, #exSpeak')) return;
   if (Q && Q.locked && performance.now() - Q.lockedAt > CONFIG.tapGuard) next();
 });
 // 別アプリ・別タブにいた間は回答時間に数えない（戻った瞬間に時間切れにしない）
@@ -439,16 +483,17 @@ document.addEventListener('visibilitychange', () => {
 $('#quitBtn').onclick = quit;
 $('#undoBtn').onclick = undo;
 $('#speakBtn').onclick = () => Q && speak(Q.q.it.w);
+$('#exSpeak').onclick = () => Q && speak(Q.q.it.e);
 $('#retryMissed').onclick = () => { if (Q) start(shuffle(Q.missed.slice())); };
 $('#againBtn').onclick = startNew;
 $('#homeBtn').onclick = () => { renderHome(); show('home'); };
 
 /* ---------- editor ---------- */
 const unquote = s => /^"[\s\S]*"$/.test(s) ? s.slice(1, -1).replace(/""/g, '"') : s;
-// 1 行を [単語, 意味] に分ける。タブがあればタブで、無ければ最初の , か | で区切る。
+// 1 行を [単語, 意味, 意味以降の生の文字列, 区切り文字] に分ける。タブがあればタブで、無ければ最初の , か | で区切る。
 // 先頭が " の CSV フィールドは閉じ " まで読み、"" を " に戻す（書き出しとの往復を保つ）
 function splitPair(line) {
-  let w, rest;
+  let w, rest, sep;
   if (line[0] === '"') {
     let i = 1, s = '';
     for (; i < line.length; i++) {
@@ -456,18 +501,38 @@ function splitPair(line) {
       else if (line[i + 1] === '"') { s += '"'; i++; }
       else break;
     }
-    const m = line.slice(i + 1).match(/^\s*[\t,|]\s*(.*)$/);
+    const m = line.slice(i + 1).match(/^\s*([\t,|])\s*(.*)$/);
     if (i >= line.length || !m) return null;
-    w = s; rest = m[1];
+    w = s; sep = m[1]; rest = m[2];
   } else {
-    const m = line.match(line.includes('\t') ? /^(.+?)\s*\t\s*(.+)$/ : /^(.+?)\s*[,|]\s*(.+)$/);
+    const m = line.match(line.includes('\t') ? /^(.+?)\s*(\t)\s*(.+)$/ : /^(.+?)\s*([,|])\s*(.+)$/);
     if (!m) return null;
-    w = m[1]; rest = m[2];
+    w = m[1]; sep = m[2]; rest = m[3];
   }
-  return [w.trim(), unquote(rest.trim()).trim()];
+  return [w.trim(), unquote(rest.trim()).trim(), rest.trim(), sep];
 }
 const csvField = s => /[",|\t\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
-const toLine = x => csvField(x.w) + ',' + csvField(x.m);
+const toLine = x => [x.w, x.m, ...(x.e ? [x.e, x.j || ''] : [])].map(csvField).join(',');
+// 区切り文字 sep で 1 行を列に分ける（" で囲んだ列の中の区切りと "" を扱う）
+function splitFields(line, sep) {
+  const out = []; let f = '', q = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (q) { if (c !== '"') f += c; else if (line[i + 1] === '"') { f += '"'; i++; } else q = false; }
+    else if (c === '"' && !f.trim()) { f = ''; q = true; }
+    else if (c === sep) { out.push(f.trim()); f = ''; }
+    else f += c;
+  }
+  out.push(f.trim());
+  return out;
+}
+// 意味のあとの 3〜4 列目は例文と和訳。3 列目が英文に見えないときは、今までどおり意味の続きとして読む
+// （「run,走る,経営する」を「意味＝走る、例文＝経営する」にしない）
+const looksLikeSentence = s => /[A-Za-z]+[^A-Za-z]+[A-Za-z]+/.test(s) && !/[\u3040-\u30ff\u4e00-\u9fff]/.test(s);
+function splitExample(rest, sep) {
+  const f = splitFields(rest, sep);
+  return f.length >= 2 && f[0] && looksLikeSentence(f[1]) ? {m: f[0], e: f[1], j: f.slice(2).join(sep)} : null;
+}
 const isHeader =(w, m) => /^(word|english|en|term|英単語|単語|英語)$/i.test(w) && /^(meaning|japanese|ja|definition|意味|日本語|訳)$/i.test(m);
 function parseList(text) {
   const out = [], seen = new Set();
@@ -476,10 +541,10 @@ function parseList(text) {
     if (!line || line.startsWith('#')) continue;
     const pair = splitPair(line);
     if (!pair) continue;
-    const [w, mean] = pair;
+    const [w, m1, rest, sep] = pair, ex = splitExample(rest, sep), mean = ex ? ex.m : m1;
     if (!w || !mean || isHeader(w, mean)) continue;
     const k = w + '\u0001' + mean; if (seen.has(k)) continue; seen.add(k);
-    out.push({w, p:'', m: mean});
+    out.push(ex ? {w, p:'', m: mean, e: ex.e, j: ex.j, b: ''} : {w, p:'', m: mean});
   }
   return out;
 }
