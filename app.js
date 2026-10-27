@@ -203,14 +203,17 @@ $('#resetBtn').onclick = () => { if (confirm('学習記録（正誤履歴）を�
 
 /* ---------- quiz ---------- */
 let Q = null;
+const gloss = m => m.split(/[、，,;；/／]/).map(s => s.trim()).filter(Boolean);
 function makeQ(it, d) {
   const dir = settings.dir === 'mix' ? (Math.random() < .5 ? 'e2j' : 'j2e') : settings.dir;
   const others = d.filter(x => x.m !== it.m && x.w !== it.w);
-  let pool = it.p ? others.filter(x => x.p === it.p) : [];
-  if (pool.length < 3) pool = others;
+  // 語義が 1 つでも重なる語（「発表する」と「発表する、提示する」）は正解が 2 つに見えるので、
+  // 同じ品詞で重ならない語 → 重ならない語 → 残り、の順に選ぶ
+  const g = new Set(gloss(it.m)), apart = others.filter(x => !gloss(x.m).some(s => g.has(s)));
   const label = x => dir === 'e2j' ? x.m : x.w;
   const seen = new Set([label(it)]), picks = [];
-  for (const x of shuffle(pool.slice())) { if (seen.has(label(x))) continue; seen.add(label(x)); picks.push(x); if (picks.length === 3) break; }
+  for (const pool of [it.p ? apart.filter(x => x.p === it.p) : [], apart, others])
+    for (const x of shuffle(pool.slice())) { if (picks.length === 3) break; if (seen.has(label(x))) continue; seen.add(label(x)); picks.push(x); }
   const opts = shuffle([it, ...picks]);
   return {it, dir, opts, ans: opts.indexOf(it), label};
 }
