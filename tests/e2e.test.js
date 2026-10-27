@@ -57,7 +57,7 @@ run(async () => {
   const k = (w, m) => w + '\u0001' + m;
   await load({settings:{deck:'c1', dir:'e2j', count:10, limit:0, speak:false}, decks:[{id:'c1', name:'T', words}],
     stats:{[k('alpha','あ')]:{c:5,w:1,t:1}, [k('beta','い')]:{c:2,w:3,t:1}}});
-  await page.click('#deckChange'); await sleep(100); await page.click('.deck-row .edit'); await sleep(100);
+  await page.click('.deck-row .edit'); await sleep(100);
   await page.$eval('#customText', t => { t.value = t.value.replace('alpha,あ', 'alpha,あ（修正）'); });
   await page.click('#saveCustom'); await sleep(100);
   const st = await page.evaluate(() => JSON.parse(localStorage.getItem('wordsprint.v1.stats')));
@@ -66,7 +66,7 @@ run(async () => {
 
   // --- A4: エディタで開いて保存しても単語が壊れない
   await load({settings:{deck:'c1'}, decks:[{id:'c1', name:'T', words:[{w:'well, then',p:'',m:'さて'},{w:'he said "hi"',p:'',m:'x'},...words.slice(0,2)]}]});
-  await page.click('#deckChange'); await sleep(100); await page.click('.deck-row .edit'); await sleep(100); await page.click('#saveCustom'); await sleep(100);
+  await page.click('.deck-row .edit'); await sleep(100); await page.click('#saveCustom'); await sleep(100);
   const ws = await page.evaluate(() => JSON.parse(localStorage.getItem('wordsprint.v1.decks'))[0].words.map(x => x.w));
   check('A4 開いて保存するだけでは単語が変わらない', ws[0] === 'well, then' && ws[1] === 'he said "hi"', JSON.stringify(ws));
 

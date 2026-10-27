@@ -27,12 +27,11 @@
     <h1>Word <span>Sprint</span></h1>
     <p class="muted tagline">4択で英単語を高速周回。苦手な単語ほどよく出ます。</p>
   </header>
-  <!-- 毎回使うもの（今のデッキ・進み具合・スタート・設定の要約）だけをホームに置き、
-       デッキ選びと設定・バックアップはダイアログに畳む -->
+  <!-- 上に毎回使うもの（今のデッキ・進み具合・スタート・設定の要約）、その下にデッキ一覧。
+       デッキはホームで 1 タップで選ぶ。設定・バックアップは ⚙ のダイアログに畳む -->
   <div class="card current">
     <div class="cur-head">
       <div class="cur-title"><h2 class="cur-name" id="curName" tabindex="-1"></h2><div class="cur-desc" id="curDesc"></div></div>
-      <button class="btn ghost small" id="deckChange" aria-haspopup="dialog">デッキを変更 ›</button>
     </div>
     <div class="cur-stats" id="curStats"></div>
     <div class="bar" aria-hidden="true"><i id="curBar"></i></div>
@@ -42,6 +41,8 @@
       <button class="chip icon-chip" id="settingsBtn" aria-haspopup="dialog" aria-label="設定とバックアップ">⚙</button>
     </div>
   </div>
+  <h2 class="sec-title" id="decksTitle">デッキを選ぶ</h2>
+  <div id="decks" role="group" aria-labelledby="decksTitle"></div>
   <p class="hint kbd-hint">キーボード：Enterでスタート ／ 1〜4で回答 ／ Enterで次へ ／ Zで取り消し ／ Escで中断</p>
 </section>
 
@@ -111,11 +112,6 @@
     </div>
   </div>
 </section>
-
-<dialog id="deckDlg" class="sheet" aria-labelledby="deckDlgTitle">
-  <div class="sheet-head"><h2 id="deckDlgTitle">デッキを選ぶ</h2><button class="btn ghost small" data-close>閉じる</button></div>
-  <div class="sheet-body" id="decks"></div>
-</dialog>
 
 <dialog id="settingsDlg" class="sheet" aria-labelledby="settingsTitle">
   <div class="sheet-head"><h2 id="settingsTitle">設定</h2><button class="btn ghost small" data-close>閉じる</button></div>

@@ -34,7 +34,6 @@ run(async () => {
   await p.keyboard.press('Escape'); await sleep(100);
   // デッキ一覧：操作できる要素の入れ子なし、編集は 44px
   await load({decks: [{id: 'c1', name: '自作', words: [{w: 'a', p: '', m: 'あ'}, {w: 'b', p: '', m: 'い'}, {w: 'c', p: '', m: 'う'}, {w: 'd', p: '', m: 'え'}]}]});
-  await p.click('#deckChange'); await sleep(150);
   check('デッキの行にボタンの入れ子が無い', await p.$$eval('#decks button', bs => bs.every(x => !x.querySelector('button'))));
   const [ew, eh] = await size('.deck-row .edit'); check('編集ボタンのタップ範囲が 44px 以上', ew >= 44 && eh >= 44, `${ew}×${eh}`);
   await p.click('.deck-row .edit'); await sleep(100);
