@@ -1,0 +1,25 @@
+# develop・main への push と PR のたびに、デッキの検証とブラウザのテスト（tests/）を回す
+name: test
+on:
+  push:
+    branches: [develop, main]
+  pull_request:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: tests/package-lock.json
+      - name: テストの依存（puppeteer と Chrome）を入れる
+        run: npm ci
+        working-directory: tests
+      - name: 内蔵デッキの検証
+        run: node tools/check-decks.mjs
+      - name: ブラウザのテスト
+        run: node tests/run.js
