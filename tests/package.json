@@ -1,0 +1,12 @@
+{
+  "name": "word-sprint-tests",
+  "private": true,
+  "type": "commonjs",
+  "description": "Word Sprint のブラウザテスト（ヘッドレス Chrome）。回し方は README の「テスト」",
+  "scripts": {
+    "test": "node run.js"
+  },
+  "devDependencies": {
+    "puppeteer": "22.9.0"
+  }
+}

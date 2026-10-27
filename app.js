@@ -153,12 +153,19 @@ function speak(t) {
   if (!canSpeak) return;
   try { speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(t); u.lang = CONFIG.speechLang; speechSynthesis.speak(u); } catch (e) {}
 }
+// 新しい版がそろったら（service worker の 'updated'）、再読み込みして自動で切り替える。
+// クイズ・編集・ダイアログの途中で読み込み直すと答えや入力が消えるので、ホームに戻るまで待つ
+let updateReady = false;
+function reloadIfIdle() {
+  if (updateReady && !$('#home').hidden && !document.querySelector('dialog[open]')) location.reload();
+}
 // 画面を切り替える。読み上げ機能が新しい画面の頭から読めるよう、見出しへフォーカスを移す
 const SCREEN_HEAD = {home: '#curName', result: '#rScore', editor: '#editTitle'};
 function show(id) {
   document.querySelectorAll('dialog[open]').forEach(d => d.close());
   for (const s of ['home','quiz','result','editor']) $('#' + s).hidden = s !== id; window.scrollTo(0, 0);
   if (SCREEN_HEAD[id]) $(SCREEN_HEAD[id]).focus({preventScroll: true});
+  if (id === 'home') reloadIfIdle();
 }
 
 /* ---------- home ---------- */
@@ -650,13 +657,13 @@ if (standalone && navigator.storage && navigator.storage.persist) navigator.stor
 // file:// では登録できない（失敗しても普通に動く）。更新の確認と差し替えは sw.js 側
 if ('serviceWorker' in navigator && location.protocol !== 'file:') {
   navigator.serviceWorker.register('sw.js').catch(() => {});
-  navigator.serviceWorker.addEventListener('message', e => { if (e.data && e.data.type === 'updated') $('#updateBar').hidden = false; });
+  navigator.serviceWorker.addEventListener('message', e => { if (e.data && e.data.type === 'updated') { updateReady = true; reloadIfIdle(); } });
+  document.querySelectorAll('dialog').forEach(d => d.addEventListener('close', reloadIfIdle));
   document.addEventListener('visibilitychange', () => {
     const sw = navigator.serviceWorker.controller;
     if (!document.hidden && sw) sw.postMessage('check');
   });
 }
-$('#updateReload').onclick = () => location.reload();
 
 if (!curDeck()) { // decks/ を置かずに index.html だけ持ち出したときなど
   $('#home').innerHTML = '<div class="card">単語データを読み込めませんでした。index.html と同じ場所に decks フォルダがあるか確認してください。</div>';
