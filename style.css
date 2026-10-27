@@ -3,6 +3,10 @@
 *{box-sizing:border-box}
 html,body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Hiragino Sans","Noto Sans JP",sans-serif;-webkit-tap-highlight-color:transparent}
 body{min-height:100dvh}
+/* アプリとして固定する：ダブルタップ拡大をさせず、端で引っぱったときの跳ね返り（ページごと動く）と横スクロールを止める。
+   画面に収まらないとき（エディタ・小さい画面）の縦スクロールはできる。ピンチ拡大は app.js でも止める（iOS は viewport を無視する） */
+html{touch-action:pan-y;overscroll-behavior:none;overflow-x:hidden}
+body{overscroll-behavior:none;overflow-x:hidden}
 [hidden]{display:none!important}
 .wrap{max-width:640px;margin:0 auto;padding:calc(16px + env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) calc(24px + env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left))}
 .update-bar{display:flex;align-items:center;justify-content:space-between;gap:12px;background:var(--accent-2);color:var(--text);border:1px solid var(--accent);border-radius:12px;padding:8px 8px 8px 14px;margin-bottom:12px;font-size:14px;font-weight:600}
@@ -116,7 +120,7 @@ input[type=text]{width:100%;font:inherit;font-size:16px;padding:10px 12px;border
 .list li:last-child{border:0}
 .list span{color:var(--muted);text-align:right}
 .actions{display:grid;gap:8px}
-textarea{width:100%;min-height:45vh;font:14px/1.6 ui-monospace,Menlo,monospace;padding:12px;border-radius:12px;border:1px solid var(--line);background:var(--bg);color:var(--text);resize:vertical}
+textarea{width:100%;min-height:45vh;font:16px/1.6 ui-monospace,Menlo,monospace;padding:12px;border-radius:12px;border:1px solid var(--line);background:var(--bg);color:var(--text);resize:vertical}
 .edit-bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:10px 0}
 dialog{max-width:min(420px,calc(100vw - 32px));border:1px solid var(--line);border-radius:16px;background:var(--card);color:var(--text);padding:20px}
 dialog::backdrop{background:rgba(0,0,0,.4)}
