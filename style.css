@@ -47,19 +47,22 @@ h2{font-size:18px;margin:0 0 8px}
 .icon-chip{margin-left:auto;font-size:17px;padding:0 11px;color:var(--muted)}
 @media (display-mode:standalone){.tagline{display:none}}
 @media (hover:none){.kbd-hint{display:none}}
-.sec-title{margin:4px 4px 8px;font-size:14px;font-weight:700;color:var(--muted)}
-/* デッキ一覧（ダイアログの中。1 行 1 デッキ） */
-#decks h3{font-size:13px;color:var(--muted);margin:14px 2px 6px}
+.sec-title{margin:20px 4px 8px;font-size:14px;font-weight:700;color:var(--muted)}
+/* デッキ一覧（ホーム。2 列、広い画面は 3 列のタイル） */
+#decks h3{font-size:13px;color:var(--muted);margin:12px 2px 6px}
 #decks h3:first-child{margin-top:0}
-.deck{position:relative;display:grid;grid-template-columns:1fr auto;gap:2px 8px;width:100%;text-align:left;font:inherit;color:var(--text);background:var(--card);border:1.5px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:6px;cursor:pointer;touch-action:manipulation}
+.deck-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+@media (min-width:560px){.deck-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+.deck{position:relative;display:flex;flex-direction:column;gap:3px;width:100%;height:100%;min-height:96px;text-align:left;font:inherit;color:var(--text);background:var(--card);border:1.5px solid var(--line);border-radius:12px;padding:10px 12px;cursor:pointer;touch-action:manipulation}
 .deck.on{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-2)}
 .deck.on .dn::after{content:" ✓";color:var(--accent)}
-.deck .dn{font-weight:700;font-size:15px;padding-right:36px}
-.deck .dd{grid-column:1/-1;font-size:12px;color:var(--muted)}
-.deck .dm{grid-column:1/-1;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
-.deck .bar{grid-column:1/-1;margin-top:4px}
+.deck .dn{font-weight:700;font-size:15px}
+.deck.has-edit .dn{padding-right:30px}
+.deck .dd{font-size:12px;color:var(--muted);line-height:1.4;flex:1}
+.deck .dm{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.deck .bar{margin-top:2px}
 .deck-row .edit{position:absolute;top:2px;right:2px;min-width:44px;min-height:44px;border:0;background:transparent;color:var(--muted);font-size:16px;cursor:pointer}
-.deck.new{display:block;border-style:dashed;text-align:center;color:var(--muted);font-weight:600;min-height:44px}
+.deck.new{align-items:center;justify-content:center;border-style:dashed;text-align:center;color:var(--muted);font-weight:600}
 .deck.off{opacity:.55}
 input[type=text]{width:100%;font:inherit;font-size:16px;padding:10px 12px;border-radius:12px;border:1px solid var(--line);background:var(--bg);color:var(--text);margin-bottom:6px}
 /* quiz */

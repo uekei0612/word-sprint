@@ -194,7 +194,7 @@ function deckStats(words) {
   weak.sort((a, b) => weight(b) - weight(a));
   return {seen, master, c, w, weak};
 }
-// デッキ一覧（ダイアログ）。内蔵デッキは group ごと、自作デッキは最後にまとめる
+// デッキ一覧（ホーム）。内蔵デッキは group ごと、自作デッキは最後にまとめる。押すとその場で選ぶ
 function renderDecks(cur) {
   const box = $('#decks'); box.innerHTML = '';
   const groups = new Map();
@@ -202,12 +202,13 @@ function renderDecks(cur) {
   if (!groups.has('自作デッキ')) groups.set('自作デッキ', []);
   for (const [g, list] of groups) {
     const h = document.createElement('h3'); h.textContent = g; box.appendChild(h);
+    const grid = document.createElement('div'); grid.className = 'deck-grid'; box.appendChild(grid);
     for (const d of list) {
       const st = deckStats(d.words), usable = d.words.length >= 4;
       // 選ぶボタンと編集ボタンは入れ子にせず、行の中に並べる
       const row = document.createElement('div'); row.className = 'deck-row';
       const el = document.createElement('button');
-      el.className = 'deck' + (d.id === cur.id ? ' on' : '') + (usable ? '' : ' off');
+      el.className = 'deck' + (d.id === cur.id ? ' on' : '') + (usable ? '' : ' off') + (d.builtin ? '' : ' has-edit');
       if (d.id === cur.id) el.setAttribute('aria-current', 'true');
       el.innerHTML = '<span class="dn"></span><span class="dd"></span><span class="dm"></span><span class="bar"><i></i></span>';
       row.appendChild(el);
@@ -220,14 +221,14 @@ function renderDecks(cur) {
         e.onclick = ev => { ev.stopPropagation(); openEditor(d.id); };
         row.appendChild(e);
       }
-      const pick = () => { if (!usable) { openEditor(d.id); return; } settings.deck = d.id; store.set('settings', settings); renderHome(); $('#deckDlg').close(); };
+      const pick = () => { if (!usable) { openEditor(d.id); return; } settings.deck = d.id; store.set('settings', settings); renderHome(); };
       el.onclick = pick;
-      box.appendChild(row);
+      grid.appendChild(row);
     }
     if (g === '自作デッキ') {
       const nw = document.createElement('button'); nw.className = 'deck new'; nw.textContent = '＋ 新しいデッキ';
       nw.onclick = () => openEditor(null);
-      box.appendChild(nw);
+      grid.appendChild(nw);
     }
   }
 }
@@ -270,7 +271,6 @@ for (const k of Object.keys(CHIPS)) {
   };
   $('#chips').insertBefore(b, $('#settingsBtn'));
 }
-$('#deckChange').onclick = () => $('#deckDlg').showModal();
 $('#settingsBtn').onclick = () => $('#settingsDlg').showModal();
 document.querySelectorAll('dialog [data-close]').forEach(b => { b.onclick = () => b.closest('dialog').close(); });
 // ダイアログの外（背景）を押したら閉じる
