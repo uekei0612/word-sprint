@@ -43,7 +43,7 @@
       <button class="chip icon-chip" id="settingsBtn" aria-haspopup="dialog" aria-label="設定とバックアップ">⚙</button>
     </div>
   </div>
-  <p class="hint kbd-hint">キーボード：Enterでスタート ／ 1〜4で回答 ／ Enterで次へ ／ Escで中断</p>
+  <p class="hint kbd-hint">キーボード：Enterでスタート ／ 1〜4で回答 ／ Enterで次へ ／ Zで取り消し ／ Escで中断</p>
 </section>
 
 <section id="quiz" hidden>
@@ -62,6 +62,7 @@
   </div>
   <div class="choices" id="choices"></div>
   <p class="tap-next" id="tapNext" hidden>タップ / Enter で次へ</p>
+  <p class="undo" id="undoBox" hidden><button class="btn ghost" id="undoBtn">押し間違えたら取り消す<span class="kbd-hint">（Z）</span></button></p>
   <p class="sr-only" id="announce" aria-live="assertive"></p>
 </section>
 
