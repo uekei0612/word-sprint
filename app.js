@@ -438,6 +438,7 @@ $('#saveCustom').onclick = () => {
 /* ---------- keyboard ---------- */
 document.addEventListener('keydown', e => {
   if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT' || e.metaKey || e.ctrlKey || e.altKey) return;
+  if (document.querySelector('dialog[open]')) return; // ダイアログ中はショートカットを効かせない
   if (e.target.closest && e.target.closest('.deck')) return;
   if (!$('#quiz').hidden) {
     if (/^[1-4]$/.test(e.key)) { answer(+e.key - 1); e.preventDefault(); }
@@ -463,6 +464,78 @@ window.addEventListener('storage', e => {
   if (!$('#home').hidden) renderHome();
 });
 $('#saveErrClose').onclick = () => { $('#saveErrBar').hidden = true; };
+
+/* ---------- 学習記録の書き出し・読み込み（バックアップ） ---------- */
+// 記録はこの端末のブラウザにしか無い（iPhone のホーム画面アプリは Safari とも別）。逃げ道はファイルだけ
+const BACKUP_FORMAT = 1; // 保存形式を変えたら上げ、readBackup で古い版も読めるようにする
+const ymd = d => [d.getFullYear(), d.getMonth() + 1, d.getDate()].map(n => String(n).padStart(2, '0')).join('');
+async function exportBackup() {
+  const data = {app: 'word-sprint', format: BACKUP_FORMAT, exportedAt: new Date().toISOString(), settings, stats, decks: customDecks};
+  const name = `word-sprint-backup-${ymd(new Date())}.json`;
+  const blob = new Blob([JSON.stringify(data)], {type: 'application/json'});
+  // iPhone は共有シートから「ファイルに保存」できる。共有できない環境ではダウンロードにする
+  try {
+    const file = new File([blob], name, {type: 'application/json'});
+    if (navigator.canShare && navigator.canShare({files: [file]})) { await navigator.share({files: [file]}); return; }
+  } catch (e) { if (e.name === 'AbortError') return; }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = name; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+// 読み込んだファイルを検証して {settings, stats, decks, exportedAt} にする。Word Sprint の記録でなければ null
+function readBackup(text) {
+  let v; try { v = JSON.parse(text); } catch (e) { return null; }
+  if (!isObj(v) || v.app !== 'word-sprint' || v.format !== BACKUP_FORMAT) return null;
+  return {settings: CHECK.settings(v.settings).value, stats: CHECK.stats(v.stats).value, decks: CHECK.decks(v.decks).value, exportedAt: v.exportedAt};
+}
+// 統合：単語ごとに回答数の多い方（同数なら新しい方）を残す。自作デッキは足し、中身が同じものは重複させない
+function mergeBackup(b) {
+  const merged = {...stats};
+  for (const [k, s] of Object.entries(b.stats)) {
+    const cur = merged[k], n = s.c + s.w, m = cur ? cur.c + cur.w : -1;
+    if (n > m || (n === m && (s.t || 0) > (cur.t || 0))) merged[k] = s;
+  }
+  stats = merged;
+  const sameWords = (a, d) => JSON.stringify(a.words.map(toLine)) === JSON.stringify(d.words.map(toLine));
+  b.decks.forEach((d, i) => {
+    if (customDecks.some(x => sameWords(x, d))) return;
+    const clash = customDecks.some(x => x.id === d.id);
+    customDecks.push(clash ? {...d, id: 'c' + Date.now().toString(36) + i, name: d.name + '（読み込み）'} : d);
+  });
+}
+function replaceBackup(b) {
+  stats = b.stats; customDecks = b.decks;
+  for (const k of Object.keys(settings)) delete settings[k];
+  Object.assign(settings, CONFIG.defaults, b.settings);
+}
+let pendingImport = null;
+$('#importFile').addEventListener('change', e => {
+  const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+  f.text().then(text => {
+    pendingImport = readBackup(text);
+    if (!pendingImport) { alert('Word Sprint で書き出した学習記録のファイルではないか、ファイルが壊れています。'); return; }
+    const at = Date.parse(pendingImport.exportedAt);
+    $('#importSummary').textContent = `${isNaN(at) ? '日時不明' : new Date(at).toLocaleString('ja-JP')} に書き出した記録です（単語 ${Object.keys(pendingImport.stats).length} 語分・自作デッキ ${pendingImport.decks.length} 個）。`;
+    $('#importDlg').showModal();
+  });
+});
+function applyImport(mode) {
+  if (!pendingImport) return;
+  if (mode === 'replace' && !confirm('今の学習記録・自作デッキ・設定を、ファイルの内容で置き換えます。よろしいですか？')) return;
+  (mode === 'merge' ? mergeBackup : replaceBackup)(pendingImport);
+  pendingImport = null; $('#importDlg').close();
+  saveStats(); saveDecks(); store.set('settings', settings);
+  renderHome(); show('home');
+  alert('学習記録を読み込みました。');
+}
+$('#importMerge').onclick = () => applyImport('merge');
+$('#importReplace').onclick = () => applyImport('replace');
+$('#importCancel').onclick = () => { pendingImport = null; $('#importDlg').close(); };
+$('#exportBtn').onclick = $('#saveErrExport').onclick = () => { exportBackup(); };
+// ホーム画面アプリでは、保存領域を空き容量不足のときに消されにくくしてもらう
+// （ブラウザで開いているときは呼ばない。Firefox などは許可を求める表示を出すため）
+const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+if (standalone && navigator.storage && navigator.storage.persist) navigator.storage.persisted().then(p => p || navigator.storage.persist()).catch(() => {});
 
 /* ---------- ホーム画面アプリ（service worker） ---------- */
 // file:// では登録できない（失敗しても普通に動く）。更新の確認と差し替えは sw.js 側
