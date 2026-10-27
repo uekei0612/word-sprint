@@ -1,6 +1,6 @@
 // 内蔵デッキ「上級」。1 行 1 語で「単語|品詞|意味」、品詞は n / v / adj / adv / phr（熟語）。無ければ空でよい
 (window.WORD_SPRINT_DECKS = window.WORD_SPRINT_DECKS || []).push({
-  id: 'advanced', name: '上級', desc: '英検準1級〜1級の目安。抽象語・論説語',
+  id: 'advanced', group: 'レベル別', name: '上級', desc: '英検準1級〜1級の目安。抽象語・論説語',
   raw: `
 ambiguity|n|曖昧さ
 consensus|n|合意、総意

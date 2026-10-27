@@ -3,7 +3,7 @@
 // 調整用の値はここに集める
 const CONFIG = {
   defaults: {deck:'toeic300-basic', dir:'e2j', count:20, limit:0, speak:false},
-  // ホームの設定ボタン。[値, 表示]
+  // 設定の選択肢。[値, 表示]。ホームのチップは押すたびに次の値へ回る
   options: {
     dir:   [['e2j', '英→日'], ['j2e', '日→英'], ['mix', 'ミックス']],
     count: [[10, '10'], [20, '20'], [50, '50'], [0, '全部']],
@@ -28,7 +28,7 @@ const POS = {n:'名詞', v:'動詞', adj:'形容詞', adv:'副詞', phr:'熟語'
 const parseRaw = raw => raw.trim().split('\n').map(l => { const [w,p,m] = l.split('|'); return {w, p, m}; });
 // 内蔵デッキは decks/*.js が window.WORD_SPRINT_DECKS に積む（追加方法は README）
 const BUILTIN_DECKS = (window.WORD_SPRINT_DECKS || [])
-  .map(d => ({id:d.id, name:d.name, desc:d.desc, builtin:true, words:parseRaw(d.raw)}));
+  .map(d => ({id:d.id, name:d.name, desc:d.desc, group:d.group || 'その他', builtin:true, words:parseRaw(d.raw)}));
 const $ = s => document.querySelector(s);
 
 const PREFIX = CONFIG.storagePrefix;
@@ -151,7 +151,10 @@ function speak(t) {
   if (!canSpeak) return;
   try { speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(t); u.lang = CONFIG.speechLang; speechSynthesis.speak(u); } catch (e) {}
 }
-function show(id) { for (const s of ['home','quiz','result','editor']) $('#' + s).hidden = s !== id; window.scrollTo(0, 0); }
+function show(id) {
+  document.querySelectorAll('dialog[open]').forEach(d => d.close());
+  for (const s of ['home','quiz','result','editor']) $('#' + s).hidden = s !== id; window.scrollTo(0, 0);
+}
 
 /* ---------- home ---------- */
 function deckStats(words) {
@@ -165,50 +168,86 @@ function deckStats(words) {
   weak.sort((a, b) => weight(b) - weight(a));
   return {seen, master, c, w, weak};
 }
+// デッキ一覧（ダイアログ）。内蔵デッキは group ごと、自作デッキは最後にまとめる
 function renderDecks(cur) {
   const box = $('#decks'); box.innerHTML = '';
-  for (const d of allDecks()) {
-    const st = deckStats(d.words), usable = d.words.length >= 4;
-    const el = document.createElement('div');
-    el.className = 'deck' + (d.id === cur.id ? ' on' : '') + (usable ? '' : ' off');
-    el.tabIndex = 0; el.setAttribute('role', 'button');
-    el.innerHTML = '<div class="dn"></div><div class="dd"></div><div class="dm"></div><div class="bar"><i></i></div>';
-    el.querySelector('.dn').textContent = d.name;
-    el.querySelector('.dd').textContent = d.builtin ? d.desc : (usable ? 'マイデッキ' : '4語以上で使えます');
-    el.querySelector('.dm').textContent = `${d.words.length}語 · 定着 ${st.master}`;
-    el.querySelector('.bar>i').style.width = (d.words.length ? st.master / d.words.length * 100 : 0) + '%';
-    if (!d.builtin) {
-      const e = document.createElement('button'); e.className = 'edit'; e.textContent = '✎'; e.setAttribute('aria-label', '編集');
-      e.onclick = ev => { ev.stopPropagation(); openEditor(d.id); };
-      el.appendChild(e);
+  const groups = new Map();
+  for (const d of allDecks()) { const g = d.builtin ? d.group : '自作デッキ'; if (!groups.has(g)) groups.set(g, []); groups.get(g).push(d); }
+  if (!groups.has('自作デッキ')) groups.set('自作デッキ', []);
+  for (const [g, list] of groups) {
+    const h = document.createElement('h3'); h.textContent = g; box.appendChild(h);
+    for (const d of list) {
+      const st = deckStats(d.words), usable = d.words.length >= 4;
+      const el = document.createElement('div');
+      el.className = 'deck' + (d.id === cur.id ? ' on' : '') + (usable ? '' : ' off');
+      el.tabIndex = 0; el.setAttribute('role', 'button');
+      if (d.id === cur.id) el.setAttribute('aria-current', 'true');
+      el.innerHTML = '<div class="dn"></div><div class="dd"></div><div class="dm"></div><div class="bar"><i></i></div>';
+      el.querySelector('.dn').textContent = d.name;
+      el.querySelector('.dd').textContent = d.builtin ? d.desc : (usable ? 'マイデッキ' : '4語以上で使えます');
+      el.querySelector('.dm').textContent = `${d.words.length}語 · 定着 ${st.master}`;
+      el.querySelector('.bar>i').style.width = (d.words.length ? st.master / d.words.length * 100 : 0) + '%';
+      if (!d.builtin) {
+        const e = document.createElement('button'); e.className = 'edit'; e.textContent = '✎'; e.setAttribute('aria-label', d.name + 'を編集');
+        e.onclick = ev => { ev.stopPropagation(); openEditor(d.id); };
+        el.appendChild(e);
+      }
+      const pick = () => { if (!usable) { openEditor(d.id); return; } settings.deck = d.id; store.set('settings', settings); renderHome(); $('#deckDlg').close(); };
+      el.onclick = pick;
+      el.onkeydown = ev => { if (ev.target === el && (ev.key === 'Enter' || ev.key === ' ')) { ev.preventDefault(); pick(); } };
+      box.appendChild(el);
     }
-    const pick = () => { if (!usable) { openEditor(d.id); return; } settings.deck = d.id; store.set('settings', settings); renderHome(); };
-    el.onclick = pick;
-    el.onkeydown = ev => { if (ev.target === el && (ev.key === 'Enter' || ev.key === ' ')) { ev.preventDefault(); pick(); } };
-    box.appendChild(el);
+    if (g === '自作デッキ') {
+      const nw = document.createElement('button'); nw.className = 'deck new'; nw.textContent = '＋ 新しいデッキ';
+      nw.onclick = () => openEditor(null);
+      box.appendChild(nw);
+    }
   }
-  const nw = document.createElement('button'); nw.className = 'deck new'; nw.textContent = '＋ 新しいデッキ';
-  nw.onclick = () => openEditor(null);
-  box.appendChild(nw);
 }
+const optLabel = k => (CONFIG.options[k].find(([v]) => v === settings[k]) || [])[1];
+// ホームの設定チップの表示。押すと CONFIG.options の次の値へ回る。
+// iPhone の幅で ⚙ と 1 行に収めるため、変えることの少ない自動発音は ⚙ の中だけに置く
+const CHIPS = {
+  dir: () => optLabel('dir'),
+  count: () => settings.count ? optLabel('count') + '問' : '全問',
+  limit: () => settings.limit ? '制限 ' + optLabel('limit') : '制限なし',
+};
+const CHIP_NAME = {dir: '出題', count: '問題数', limit: '制限時間'};
 function renderHome() {
   document.querySelectorAll('.seg').forEach(seg => {
     const key = seg.dataset.key;
     seg.querySelectorAll('button').forEach(b => b.classList.toggle('on', String(settings[key]) === b.dataset.val));
   });
   const cur = curDeck(); renderDecks(cur);
-  $('#startBtn').textContent = `「${cur.name}」でスタート`;
-  // 設定はデッキの下にあるので、今の設定をボタンの下に出す
-  const opt = k => (CONFIG.options[k].find(([v]) => v === settings[k]) || [])[1];
-  $('#startInfo').textContent = `${opt('dir')} ・ ${settings.count ? opt('count') + '問' : '全問'} ・ 制限時間 ${opt('limit')}`;
   const {seen, master, c, w, weak} = deckStats(cur.words);
-  const acc = c + w ? Math.round(c / (c + w) * 100) + '%' : '—';
-  $('#homeStats').innerHTML =
-    `<div class="sec-title" style="margin:0 0 10px"></div><div class="tiles"><div><b>${seen}<small>/${cur.words.length}</small></b><small>出題済み</small></div><div><b>${master}</b><small>定着</small></div><div><b>${acc}</b><small>累計正答率</small></div></div>` +
-    (weak.length ? `<button class="btn big" id="weakBtn">苦手な単語を集中練習（${Math.min(weak.length, CONFIG.weakMax)}語）</button>` : '');
-  $('#homeStats .sec-title').textContent = `${cur.name} の学習状況`;
-  const wb = $('#weakBtn'); if (wb) wb.onclick = () => start(shuffle(weak.slice(0, CONFIG.weakMax)));
+  $('#curName').textContent = cur.name;
+  $('#curDesc').textContent = cur.builtin ? cur.desc : 'マイデッキ';
+  $('#curStats').textContent = `出題 ${seen}/${cur.words.length} · 定着 ${master} · 正答率 ${c + w ? Math.round(c / (c + w) * 100) + '%' : '—'}`;
+  $('#curBar').style.width = master / cur.words.length * 100 + '%';
+  const n = settings.count ? Math.min(settings.count, cur.words.length) : cur.words.length;
+  $('#startBtn').textContent = `スタート（${n}問）`;
+  const wb = $('#weakBtn'), wn = Math.min(weak.length, CONFIG.weakMax);
+  wb.hidden = !wn; wb.textContent = `苦手な ${wn} 語を集中練習`;
+  wb.onclick = () => start(shuffle(weak.slice(0, CONFIG.weakMax)));
+  for (const k of Object.keys(CHIPS)) {
+    const b = $('#chips [data-key="' + k + '"]'); if (!b) continue;
+    b.textContent = CHIPS[k](); b.setAttribute('aria-label', `${CHIP_NAME[k]}：${CHIPS[k]()}（押すと切り替え）`);
+  }
 }
+// 設定チップ。⚙ の前に並べる
+for (const k of Object.keys(CHIPS)) {
+  const b = document.createElement('button'); b.className = 'chip'; b.dataset.key = k;
+  b.onclick = () => {
+    const opts = CONFIG.options[k], i = opts.findIndex(([v]) => v === settings[k]);
+    settings[k] = opts[(i + 1) % opts.length][0]; store.set('settings', settings); renderHome();
+  };
+  $('#chips').insertBefore(b, $('#settingsBtn'));
+}
+$('#deckChange').onclick = () => $('#deckDlg').showModal();
+$('#settingsBtn').onclick = () => $('#settingsDlg').showModal();
+document.querySelectorAll('dialog [data-close]').forEach(b => { b.onclick = () => b.closest('dialog').close(); });
+// ダイアログの外（背景）を押したら閉じる
+document.querySelectorAll('dialog.sheet').forEach(d => d.addEventListener('click', e => { if (e.target === d) d.close(); }));
 // 設定ボタンは CONFIG.options から作る。押したボタンの値は型を保ったまま settings に入れる
 document.querySelectorAll('.seg').forEach(seg => {
   const key = seg.dataset.key;
