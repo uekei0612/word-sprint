@@ -94,6 +94,16 @@ input[type=text]{width:100%;font:inherit;font-size:16px;padding:10px 12px;border
 .choice.ng{border-color:var(--ng);background:var(--ng-bg)}
 .choice.ng .num{background:var(--ng);color:var(--on-mark)}
 .choice.dim{opacity:.4}
+.example{position:relative;margin-top:12px;padding:14px 48px 14px 16px}
+.example p{margin:0}
+.ex-en{font-size:16px;line-height:1.5}
+.ex-ja{font-size:14px;color:var(--muted);margin-top:4px!important}
+.ex-en mark,.list .ex mark{background:var(--accent-2);color:inherit;font-weight:700;border-radius:3px;padding:0 2px}
+.example .speak{top:6px;right:4px}
+.list li{flex-wrap:wrap}
+.list .ex{flex-basis:100%;display:flex;flex-direction:column;gap:2px;font-size:13px}
+.list .ex span{text-align:left;color:var(--text)}
+.list .ex .ex-ja{font-size:12px;margin:0!important;color:var(--muted)}
 .tap-next{text-align:center;color:var(--muted);font-size:13px;margin-top:14px}
 .undo{text-align:center;margin:6px 0 0}
 .undo .btn{min-height:44px;font-size:14px}
