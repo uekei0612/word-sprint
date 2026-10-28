@@ -25,7 +25,9 @@ const CONFIG = {
   // 定着の基準：正解 minCorrect 回以上、かつ正解が誤答の ratio 倍以上
   master: {minCorrect:3, ratio:3},
   speechLang: 'en-US',
-  storagePrefix: 'wordsprint.v1.',
+  // 保存の版。v2 で学習記録を出題方向ごとに分けた（#3）。前の版の保存は消さずに残す（古い版に戻しても記録が残る）
+  storagePrefix: 'wordsprint.v2.',
+  oldPrefix: 'wordsprint.v1.',
 };
 
 const POS = {n:'名詞', v:'動詞', adj:'形容詞', adv:'副詞', phr:'熟語'};
@@ -103,6 +105,32 @@ function load(k, def) {
   }
   return r.value;
 }
+// 学習記録は単語・意味・出題方向ごと（英→日と日→英は別の記録。Anki の 1 ノート 2 カードと同じ）
+const DIRS = ['e2j', 'j2e'];
+const wKey = it => it.w + '\u0001' + it.m;
+const sKey = (it, dir) => wKey(it) + '\u0001' + dir;
+// 方向の無い記録（v1・古いバックアップ）を両方向に写す。どちらの方向で付いた正誤かは分からないため
+function splitStats(old) {
+  const out = {};
+  for (const [k, s] of Object.entries(old)) for (const d of DIRS) out[k + '\u0001' + d] = {...s};
+  return out;
+}
+// v1 の保存を v2 へ一度だけ写す（v2 の保存が 1 つも無いとき）。記録は splitStats、ほかはそのまま
+function migrateV1() {
+  try {
+    const keys = Array.from({length: localStorage.length}, (_, i) => localStorage.key(i));
+    if (keys.some(k => k && k.startsWith(PREFIX))) return;
+    for (const k of keys) {
+      if (!k || !k.startsWith(CONFIG.oldPrefix) || k.startsWith(CONFIG.oldPrefix + 'broken.')) continue;
+      const name = k.slice(CONFIG.oldPrefix.length), raw = localStorage.getItem(k);
+      if (name !== 'stats') { localStorage.setItem(PREFIX + name, raw); continue; }
+      let v = null; try { v = JSON.parse(raw); } catch (e) {}
+      if (isObj(v)) localStorage.setItem(PREFIX + 'stats', JSON.stringify(splitStats(v)));
+      else localStorage.setItem(PREFIX + 'stats', raw); // 壊れていれば load が退避して直す
+    }
+  } catch (e) { saveFailed(); }
+}
+migrateV1();
 const settings = Object.assign({}, CONFIG.defaults, load('settings', {}));
 let stats = load('stats', {});
 let customDecks = load('decks', null);
@@ -129,19 +157,18 @@ if (settings.deck === 'toeic') settings.deck = 'toeic300-core'; // 旧「TOEIC�
 const canSpeak = 'speechSynthesis' in window;
 
 const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.random() * (i + 1) | 0; [a[i], a[j]] = [a[j], a[i]]; } return a; };
-const sKey = it => it.w + '\u0001' + it.m;
 const usable = d => d && d.words.length >= 4;
 // どのデッキにも無くなった記録（内蔵デッキで意味の書き方を変えた語など）を、今の書き方の記録へ移す。
 // 記録のキーは「単語＋意味」なので、そのままだと記録が外れる。内蔵デッキでのその単語の意味が
 // 1 つに決まるときだけ移し、両方に記録があれば回数を足す。移したキーを返す
 function moveStaleStats() {
-  const live = new Set(allDecks().flatMap(d => d.words.map(sKey))), meaning = new Map();
+  const live = new Set(allDecks().flatMap(d => d.words.flatMap(it => DIRS.map(dir => sKey(it, dir))))), meaning = new Map();
   for (const it of BUILTIN_DECKS.flatMap(d => d.words)) meaning.set(it.w, meaning.has(it.w) && meaning.get(it.w) !== it.m ? null : it.m);
   const changed = [];
   for (const k of Object.keys(stats)) {
-    const w = k.slice(0, k.indexOf('\u0001')), m = meaning.get(w);
-    if (live.has(k) || !m) continue;
-    const to = sKey({w, m}), a = stats[k], b = stats[to] || {c:0, w:0}, t = Math.max(a.t || 0, b.t || 0);
+    const [w, , dir] = k.split('\u0001'), m = meaning.get(w);
+    if (live.has(k) || !m || !DIRS.includes(dir)) continue;
+    const to = sKey({w, m}, dir), a = stats[k], b = stats[to] || {c:0, w:0}, t = Math.max(a.t || 0, b.t || 0);
     stats[to] = t ? {c: a.c + b.c, w: a.w + b.w, t} : {c: a.c + b.c, w: a.w + b.w};
     delete stats[k]; changed.push(k, to);
   }
@@ -151,15 +178,20 @@ function moveStaleStats() {
 // 選択中のデッキが使えなければ既定のデッキ、それも無ければ最初の内蔵デッキ
 const curDeck = () => [settings.deck, CONFIG.defaults.deck].map(id => allDecks().find(x => x.id === id)).find(usable) || BUILTIN_DECKS.find(usable);
 const deck = () => curDeck().words;
-function weight(it) { const s = stats[sKey(it)], W = CONFIG.weight; return s ? W.base + W.scale * (s.w + 1) / (s.c + s.w + 2) : W.unseen; }
+// 出題する方向。ミックスは両方向の記録（カード）から選ぶ
+const dirsFor = () => settings.dir === 'mix' ? DIRS : [settings.dir];
+function weight(it, dir) { const s = stats[sKey(it, dir)], W = CONFIG.weight; return s ? W.base + W.scale * (s.w + 1) / (s.c + s.w + 2) : W.unseen; }
+// 重みつきで n 語選び、出題の列（{it, dir} のカード）にする。ミックスでは方向ごとの重みで選び、
+// 同じ語を 1 回のクイズで両方向に出さない
 function sample(list, n) {
-  const pool = list.map(it => ({it, wt: weight(it)}));
-  const out = []; n = Math.min(n || pool.length, pool.length);
+  const pool = list.flatMap(it => dirsFor().map(dir => ({it, dir, wt: weight(it, dir)})));
+  const out = []; n = Math.min(n || list.length, list.length);
   while (out.length < n) {
     let tot = 0; for (const p of pool) tot += p.wt;
     let r = Math.random() * tot, i = 0;
     for (; i < pool.length - 1; i++) { r -= pool[i].wt; if (r <= 0) break; }
-    out.push(pool.splice(i, 1)[0].it);
+    const {it, dir} = pool[i]; out.push({it, dir});
+    for (let j = pool.length - 1; j >= 0; j--) if (pool[j].it === it) pool.splice(j, 1);
   }
   return out;
 }
@@ -186,16 +218,21 @@ function show(id) {
 }
 
 /* ---------- home ---------- */
+// 今の出題方向（ミックスは両方向）での集計。定着は選んだ方向すべてで定着した語、苦手はカード（{it, dir}）。
+// ミックスの苦手は 1 語につき重みの大きい方向 1 枚にする
+const mastered = s => !!s && s.c >= CONFIG.master.minCorrect && s.c >= s.w * CONFIG.master.ratio;
 function deckStats(words) {
-  let seen = 0, master = 0, c = 0, w = 0; const weak = [];
+  let seen = 0, master = 0, c = 0, w = 0; const weak = [], dirs = dirsFor();
   for (const it of words) {
-    const s = stats[sKey(it)]; if (!s) continue;
-    seen++; c += s.c; w += s.w;
-    if (s.c >= CONFIG.master.minCorrect && s.c >= s.w * CONFIG.master.ratio) master++;
-    if (s.w > 0) weak.push(it);
+    const ss = dirs.map(dir => stats[sKey(it, dir)]); if (!ss.some(Boolean)) continue;
+    seen++;
+    for (const s of ss) if (s) { c += s.c; w += s.w; }
+    if (ss.every(mastered)) master++;
+    const bad = dirs.filter((dir, i) => ss[i] && ss[i].w > 0).map(dir => ({it, dir, wt: weight(it, dir)}));
+    if (bad.length) weak.push(bad.reduce((a, b) => b.wt > a.wt ? b : a));
   }
-  weak.sort((a, b) => weight(b) - weight(a));
-  return {seen, master, c, w, weak};
+  weak.sort((a, b) => b.wt - a.wt);
+  return {seen, master, c, w, weak: weak.map(({it, dir}) => ({it, dir}))};
 }
 // デッキ一覧（ホーム）。内蔵デッキは group の順、自作デッキは最後に並べる。押すとその場で選ぶ。
 // スクロールを減らすため見出しは置かず、1 つのタイルの並びにする（見出しごとに行の空きが出る）
@@ -296,8 +333,7 @@ $('#resetBtn').onclick = () => { if (confirm('学習記録（正誤履歴）を�
 /* ---------- quiz ---------- */
 let Q = null;
 const gloss = m => m.split(/[、，,;；/／]/).map(s => s.trim()).filter(Boolean);
-function makeQ(it, d) {
-  const dir = settings.dir === 'mix' ? (Math.random() < .5 ? 'e2j' : 'j2e') : settings.dir;
+function makeQ(it, dir, d) {
   const others = d.filter(x => x.m !== it.m && x.w !== it.w);
   // 語義が 1 つでも重なる語（「発表する」と「発表する、提示する」）は正解が 2 つに見えるので、
   // 同じ品詞で重ならない語 → 重ならない語 → 残り、の順に選ぶ
@@ -311,16 +347,16 @@ function makeQ(it, d) {
 }
 function start(items) {
   if (!items.length) return;
-  // items は出題の列。間違えた語を途中に差し込むので、re[i] で出し直しかどうかを持つ。base は最初の問題数
+  // items は出題の列（{it, dir} のカード）。間違えた語を途中に差し込むので、re[i] で出し直しかどうかを持つ。base は最初の問題数
   Q = {items, re: items.map(() => false), base: items.length, again: new Map(), relearned: 0, i:0, ok:0, missed:[], times:[], streak:0, best:0, locked:false, raf:0, to:0};
   show('quiz'); render();
 }
 // keep を渡すと同じ選択肢の並びで出し直す（取り消したとき）
 function render(keep) {
-  const it = Q.items[Q.i], re = Q.re[Q.i];
-  let q = keep || makeQ(it, deck());
+  const {it, dir} = Q.items[Q.i], re = Q.re[Q.i];
+  let q = keep || makeQ(it, dir, deck());
   // 出し直しでは、前に出したときと選択肢の並びを変える
-  for (let n = 0; !keep && re && n < 5 && q.opts.map(q.label).join() === Q.again.get(it).order; n++) q = makeQ(it, deck());
+  for (let n = 0; !keep && re && n < 5 && q.opts.map(q.label).join() === Q.again.get(it).order; n++) q = makeQ(it, dir, deck());
   Q.q = q; Q.locked = false;
   const nth = Q.re.slice(0, Q.i + 1).filter(x => !x).length;
   $('#counter').textContent = re ? 'もう一度' : `${nth} / ${Q.base}`;
@@ -366,7 +402,7 @@ function startTimer() {
 function answer(i) {
   if (!Q || Q.locked) return;
   Q.locked = true; Q.lockedAt = performance.now(); cancelAnimationFrame(Q.raf);
-  const {it, ans, dir} = Q.q, ok = i === ans, k = sKey(it);
+  const {it, ans, dir} = Q.q, ok = i === ans, k = sKey(it, dir), card = Q.items[Q.i];
   // 押して間違えたときだけ、回答前の状態を取っておいて取り消せるようにする（押し間違い対策）
   Q.undo = ok || i < 0 ? null : {k, s: stats[k] ? {...stats[k]} : null, ok: Q.ok, streak: Q.streak, best: Q.best, missed: Q.missed.slice(), times: Q.times.length,
     items: Q.items.slice(), re: Q.re.slice(), again: new Map([...Q.again].map(([w, a]) => [w, {...a}])), relearned: Q.relearned};
@@ -380,10 +416,10 @@ function answer(i) {
     Q.times.push(performance.now() - Q.qt0);
     const s = stats[k] || (stats[k] = {c:0, w:0});
     if (ok) { s.c++; Q.ok++; Q.streak++; Q.best = Math.max(Q.best, Q.streak); }
-    else { s.w++; Q.streak = 0; if (!Q.missed.includes(it)) Q.missed.push(it); }
+    else { s.w++; Q.streak = 0; if (!Q.missed.some(x => x.it === it)) Q.missed.push(card); }
     s.t = Date.now(); saveStats([k]);
   }
-  if (!ok) relearnLater(it);
+  if (!ok) relearnLater(card);
   $('#qcard').classList.add(ok ? 'ok' : 'ng');
   $('#announce').textContent = ok ? '正解' : `${i < 0 ? '時間切れ' : '不正解'}。正解は ${Q.q.label(it)}`;
   $('#score').textContent = `正解 ${Q.ok}`;
@@ -416,12 +452,12 @@ function showExample(it, ok) {
   return true;
 }
 // 間違えた語を gap 問後に差し込む。残りが gap 問より少なければ最後に出す
-function relearnLater(it) {
-  const a = Q.again.get(it) || {n: 0};
+function relearnLater(card) {
+  const a = Q.again.get(card.it) || {n: 0};
   if (a.n >= CONFIG.relearn.max) return;
-  a.n++; a.order = Q.q.opts.map(Q.q.label).join(); Q.again.set(it, a);
+  a.n++; a.order = Q.q.opts.map(Q.q.label).join(); Q.again.set(card.it, a);
   const at = Math.min(Q.i + 1 + CONFIG.relearn.gap, Q.items.length);
-  Q.items.splice(at, 0, it); Q.re.splice(at, 0, true);
+  Q.items.splice(at, 0, card); Q.re.splice(at, 0, true);
 }
 // 直前の回答（間違えたもの）を取り消し、記録とスコアを回答前に戻して同じ問題を出し直す
 function undo() {
@@ -456,7 +492,7 @@ function finish() {
   $('#rBest').textContent = Q.best;
   $('#rRelearn').textContent = Q.relearned ? `間違えた語を ${Q.relearned} 問もう一度出しました（正答率には数えません）` : '';
   const ul = $('#missedList'); ul.innerHTML = '';
-  for (const it of Q.missed) {
+  for (const {it} of Q.missed) {
     const li = document.createElement('li');
     li.innerHTML = '<b></b><span></span>';
     li.firstChild.textContent = it.w; li.firstChild.lang = 'en'; li.lastChild.textContent = it.m;
@@ -594,16 +630,19 @@ $('#fileIn').addEventListener('change', e => {
 // 記録のキーは「単語＋意味」なので、意味だけ直すと記録が外れる。
 // 単語が一意に対応するときだけ、旧キーの記録を新キーへ引き継ぐ
 function carryStats(deckId, oldWords, newWords) {
-  const newKeys = new Set(newWords.map(sKey)), count = (list, w) => list.filter(x => x.w === w).length;
-  const usedElsewhere = new Set(allDecks().filter(x => x.id !== deckId).flatMap(x => x.words.map(sKey)));
+  const newKeys = new Set(newWords.map(wKey)), count = (list, w) => list.filter(x => x.w === w).length;
+  const usedElsewhere = new Set(allDecks().filter(x => x.id !== deckId).flatMap(x => x.words.map(wKey)));
   const changed = [];
   for (const it of newWords) {
-    const k = sKey(it);
-    if (stats[k] || count(newWords, it.w) !== 1 || count(oldWords, it.w) !== 1) continue;
-    const from = sKey(oldWords.find(x => x.w === it.w));
-    if (newKeys.has(from) || !stats[from]) continue;
-    stats[k] = {...stats[from]}; changed.push(k);
-    if (!usedElsewhere.has(from)) { delete stats[from]; changed.push(from); } // 他デッキと共有している記録は残す
+    if (count(newWords, it.w) !== 1 || count(oldWords, it.w) !== 1) continue;
+    const old = oldWords.find(x => x.w === it.w);
+    if (newKeys.has(wKey(old))) continue;
+    for (const dir of DIRS) { // 方向ごとに引き継ぐ
+      const k = sKey(it, dir), from = sKey(old, dir);
+      if (stats[k] || !stats[from]) continue;
+      stats[k] = {...stats[from]}; changed.push(k);
+      if (!usedElsewhere.has(wKey(old))) { delete stats[from]; changed.push(from); } // 他デッキと共有している記録は残す
+    }
   }
   if (changed.length) saveStats(changed);
 }
@@ -652,7 +691,7 @@ $('#saveErrClose').onclick = () => { $('#saveErrBar').hidden = true; };
 
 /* ---------- 学習記録の書き出し・読み込み（バックアップ） ---------- */
 // 記録はこの端末のブラウザにしか無い（iPhone のホーム画面アプリは Safari とも別）。逃げ道はファイルだけ
-const BACKUP_FORMAT = 1; // 保存形式を変えたら上げ、readBackup で古い版も読めるようにする
+const BACKUP_FORMAT = 2; // 保存形式を変えたら上げ、readBackup で古い版も読めるようにする（2：記録を出題方向ごとに分けた）
 const ymd = d => [d.getFullYear(), d.getMonth() + 1, d.getDate()].map(n => String(n).padStart(2, '0')).join('');
 async function exportBackup() {
   const data = {app: 'word-sprint', format: BACKUP_FORMAT, exportedAt: new Date().toISOString(), settings, stats, decks: customDecks};
@@ -670,8 +709,9 @@ async function exportBackup() {
 // 読み込んだファイルを検証して {settings, stats, decks, exportedAt} にする。Word Sprint の記録でなければ null
 function readBackup(text) {
   let v; try { v = JSON.parse(text); } catch (e) { return null; }
-  if (!isObj(v) || v.app !== 'word-sprint' || v.format !== BACKUP_FORMAT) return null;
-  return {settings: CHECK.settings(v.settings).value, stats: CHECK.stats(v.stats).value, decks: CHECK.decks(v.decks).value, exportedAt: v.exportedAt};
+  if (!isObj(v) || v.app !== 'word-sprint' || !(v.format >= 1 && v.format <= BACKUP_FORMAT)) return null;
+  const st = CHECK.stats(v.stats).value;
+  return {settings: CHECK.settings(v.settings).value, stats: v.format === 1 ? splitStats(st) : st, decks: CHECK.decks(v.decks).value, exportedAt: v.exportedAt};
 }
 // 統合：単語ごとに回答数の多い方（同数なら新しい方）を残す。自作デッキは足し、中身が同じものは重複させない
 function mergeBackup(b) {
@@ -700,7 +740,7 @@ $('#importFile').addEventListener('change', e => {
     pendingImport = readBackup(text);
     if (!pendingImport) { alert('Word Sprint で書き出した学習記録のファイルではないか、ファイルが壊れています。'); return; }
     const at = Date.parse(pendingImport.exportedAt);
-    $('#importSummary').textContent = `${isNaN(at) ? '日時不明' : new Date(at).toLocaleString('ja-JP')} に書き出した記録です（単語 ${Object.keys(pendingImport.stats).length} 語分・自作デッキ ${pendingImport.decks.length} 個）。`;
+    $('#importSummary').textContent = `${isNaN(at) ? '日時不明' : new Date(at).toLocaleString('ja-JP')} に書き出した記録です（単語 ${new Set(Object.keys(pendingImport.stats).map(k => k.split('\u0001', 2).join('\u0001'))).size} 語分・自作デッキ ${pendingImport.decks.length} 個）。`;
     $('#importDlg').showModal();
   });
 });

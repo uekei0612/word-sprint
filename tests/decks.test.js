@@ -1,4 +1,4 @@
-const {P, sleep, check, launch, serve, run} = require('./lib');
+const {P, P1, K, sleep, check, launch, serve, run} = require('./lib');
 const fs = require('fs'), path = require('path');
 let BASE;
 const S = 'attach\u0001';
@@ -14,7 +14,8 @@ run(async () => {
   check('内蔵デッキが 7 つ、この順で並ぶ', names.join('/') === 'TOEIC 300・基礎/TOEIC 300・頻出/TOEIC 熟語/中学基礎/中上級/上級/IT・エンジニア', names.join('/'));
   check('既定のデッキは TOEIC 300・基礎', (await p.$eval('.deck.on .dn', e => e.textContent)) === 'TOEIC 300・基礎');
 
-  // 2. 旧「TOEIC頻出」を選んでいた人は TOEIC 300・頻出へ。書き方を変えた語の記録を移す
+  // 2. 旧「TOEIC頻出」を選んでいた人は TOEIC 300・頻出へ。書き方を変えた語の記録を移す。
+  // 前の版（v1・方向の無い記録）の保存から始めて、v2 への写しと合わせて確かめる
   await p.evaluate((P, S) => {
     localStorage.clear();
     localStorage.setItem(P + 'settings', JSON.stringify({deck: 'toeic'}));
@@ -23,14 +24,15 @@ run(async () => {
       [S + '添付する、取り付ける']: {c: 2, w: 1, t: 100}, [S + '添付する']: {c: 1, w: 0, t: 200},
       'terminate\u0001終了させる': {c: 4, w: 0}, 'zzz\u0001q': {c: 1, w: 0}, 'abandon\u0001捨てる': {c: 5, w: 0},
       'abandon\u0001捨てる、放棄する': {c: 1, w: 1, t: 5}}));
-  }, P, S);
+  }, P1, S);
   await p.goto(BASE); await sleep(150);
   check('旧「TOEIC頻出」を選んでいた人は TOEIC 300・頻出が選ばれる', (await p.$eval('.deck.on .dn', e => e.textContent)) === 'TOEIC 300・頻出');
-  const st = await getStats(p);
-  check('書き方の違う旧キーの記録を新キーに足す（回数は合計、時刻は新しい方）', JSON.stringify(st[S + '添付する']) === JSON.stringify({c: 3, w: 1, t: 200}) && !st[S + '添付する、取り付ける'], JSON.stringify(st[S + '添付する']));
-  check('相手に記録が無ければそのまま移す', JSON.stringify(st['terminate\u0001終了させる、解除する']) === JSON.stringify({c: 4, w: 0}) && !st['terminate\u0001終了させる']);
-  check('内蔵デッキに無い単語の記録は触らない', JSON.stringify(st['zzz\u0001q']) === JSON.stringify({c: 1, w: 0}));
-  check('自作デッキが使っているキーは移さない', JSON.stringify(st['abandon\u0001捨てる']) === JSON.stringify({c: 5, w: 0}) && JSON.stringify(st['abandon\u0001捨てる、放棄する']) === JSON.stringify({c: 1, w: 1, t: 5}));
+  const st = await getStats(p), J = JSON.stringify, both = (w, m, v) => ['e2j', 'j2e'].every(d => J(st[K(w, m, d)]) === J(v));
+  check('書き方の違う旧キーの記録を新キーに足す（回数は合計、時刻は新しい方。両方向とも）', both('attach', '添付する', {c: 3, w: 1, t: 200}) && !st[K('attach', '添付する、取り付ける')], J(st[K('attach', '添付する')]));
+  check('相手に記録が無ければそのまま移す', both('terminate', '終了させる、解除する', {c: 4, w: 0}) && !st[K('terminate', '終了させる')]);
+  check('内蔵デッキに無い単語の記録は触らない', both('zzz', 'q', {c: 1, w: 0}));
+  check('自作デッキが使っているキーは移さない', both('abandon', '捨てる', {c: 5, w: 0}) && both('abandon', '捨てる、放棄する', {c: 1, w: 1, t: 5}));
+  check('設定と自作デッキも v2 へ写り、v1 の保存は残る', await p.evaluate((P, P1) => JSON.parse(localStorage.getItem(P + 'decks'))[0].name === '自作' && !!localStorage.getItem(P1 + 'stats'), P, P1));
   await p.goto(BASE); await sleep(150);
   check('開き直しても記録は変わらない（二重に足さない）', JSON.stringify(await getStats(p)) === JSON.stringify(st));
 
@@ -39,7 +41,7 @@ run(async () => {
   await (await p.$('#importFile')).uploadFile(path.join(require('os').tmpdir(), 'word-sprint-old-backup.json')); await sleep(200);
   await p.click('#importMerge'); await sleep(200);
   const st3 = await getStats(p);
-  check('古いバックアップの記録も新キーへ移る', JSON.stringify(st3['replace\u0001交換する、取って代わる']) === JSON.stringify({c: 2, w: 2, t: 9}) && !st3['replace\u0001取り替える'], JSON.stringify(st3['replace\u0001交換する、取って代わる']));
+  check('古いバックアップ（format 1）の記録は両方向に写り、新キーへ移る', ['e2j', 'j2e'].every(d => JSON.stringify(st3[K('replace', '交換する、取って代わる', d)]) === JSON.stringify({c: 2, w: 2, t: 9})) && !st3[K('replace', '取り替える')], JSON.stringify(st3[K('replace', '交換する、取って代わる')]));
 
   // 4. 誤答に、正解と語義が重なる語を出さない（語義の重なる組のあるデッキの全語 × 両方向）。
   // 1 問ずつ外から操作すると遅いので、ページの中で正解を押し、Enter で次へ進めながら全部見る
