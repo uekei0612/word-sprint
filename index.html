@@ -5,8 +5,10 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>Word Sprint</title>
 <meta name="description" content="4択クイズで英単語を高速に周回するアプリ">
-<meta name="theme-color" content="#4f46e5" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#0f1115" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#4f46e5" media="(prefers-color-scheme: light)" data-scheme="light">
+<meta name="theme-color" content="#0f1115" media="(prefers-color-scheme: dark)" data-scheme="dark">
+<!-- ⚙ でライト・ダークを選んでいたら、描く前に当てる（app.js の applyLook と同じ。後から切り替わるちらつきを防ぐ） -->
+<script>try { const t = JSON.parse(localStorage.getItem('wordsprint.v2.settings') || '{}').theme; if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t; } catch (e) {}</script>
 <!-- ホーム画面アプリ（PWA） -->
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
@@ -170,6 +172,10 @@
     <p class="note">答えたあとに例文と和訳を出します（内蔵デッキはすべて例文つき。自作デッキは CSV の 3・4 列目に書いた語だけ）。例文を出したときは、タップ / Enter で次へ進みます。</p>
     <div class="row"><span class="row-label" id="lblNew">1日の新規</span><div class="seg" data-key="newPerDay" role="group" aria-labelledby="lblNew"></div></div>
     <p class="note">「今日の復習」は、覚えた語を 1・3・7・14・30 日…と間隔を空けて出し直します。正解で間隔が伸び、間違えるとその日のうちにもう一度出ます。新しい語はデッキごとに 1 日この数まで足します。</p>
+    <h3>見た目</h3>
+    <div class="row"><span class="row-label" id="lblTheme">画面</span><div class="seg" data-key="theme" role="group" aria-labelledby="lblTheme"></div></div>
+    <div class="row"><span class="row-label" id="lblIcon">アイコン</span><div class="seg" data-key="icon" role="group" aria-labelledby="lblIcon"></div></div>
+    <p class="note" id="iconNote"></p>
     <h3>学習記録</h3>
     <p class="note">記録はこの端末のブラウザにだけ保存されます。機種変更やアプリの削除に備えて、ときどき書き出してください。</p>
     <div class="actions">
