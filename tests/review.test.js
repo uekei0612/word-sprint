@@ -37,8 +37,10 @@ run(async () => {
   const w2 = await choose(true); await nextQ(); st = await stats();
   check('速い正解：箱 3・印なし', st[K(w2, M[w2])].b === 3 && !st[K(w2, M[w2])].r, JSON.stringify(st[K(w2, M[w2])]));
   // 3. 時間のかかった正解は「迷った」
+  // 正解後は 380ms で次へ進み読み上げ文が消えるので、変わるたびに控えておく（負荷が高いと読む前に消える）
+  await p.evaluate(() => { window.__ann = []; const a = document.querySelector('#announce'); new MutationObserver(() => window.__ann.push(a.textContent)).observe(a, {childList: true, characterData: true, subtree: true}); });
   await sleep(2200); const w3 = await choose(true);
-  const ann = await p.$eval('#announce', e => e.textContent); await nextQ(); st = await stats();
+  const ann = (await p.evaluate(() => window.__ann)).join(' / '); await nextQ(); st = await stats();
   check('基準（中央値 1000ms の 1.8 倍）を超えた正解は迷った：印 r=2・箱は上げない・読み上げで伝える', st[K(w3, M[w3])].r === 2 && st[K(w3, M[w3])].b === 2 && /振り返りに入れました/.test(ann), JSON.stringify(st[K(w3, M[w3])]) + ann);
   // 4. 間違えた後に「自信なし」を押す：印が付き、自動で進まない
   const w4 = await choose(false);

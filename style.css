@@ -145,3 +145,8 @@ dialog.sheet[open]{display:flex}
 [tabindex="-1"]:focus{outline:none}
 .deck-row{position:relative}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{transition:none!important;animation:none!important}}
+/* 出題しない語（#9）。ホームの件数は控えめなリンクにし、主のボタンの並びを崩さない */
+.link-btn{font:inherit;font-size:13px;color:var(--muted);background:none;border:0;padding:0 0 6px;min-height:32px;cursor:pointer;text-decoration:underline;text-underline-offset:3px}
+.unsure .chip+.chip{margin-left:6px}
+#suspList li{align-items:center}
+#suspList li span{flex:1}
