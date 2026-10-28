@@ -10,6 +10,8 @@ const FILES = [
   './', 'index.html', 'style.css', 'app.js', 'manifest.webmanifest',
   'decks/basic.js', 'decks/toeic300-basic.js', 'decks/toeic300-core.js', 'decks/toeic-phrases.js', 'decks/upper.js', 'decks/advanced.js', 'decks/it.js',
   'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png',
+  // ⚙ で選べるアイコンの色（app.js の CONFIG.iconColors）
+  'icons/apple-touch-icon-blue.png', 'icons/apple-touch-icon-green.png', 'icons/apple-touch-icon-red.png', 'icons/apple-touch-icon-orange.png', 'icons/apple-touch-icon-black.png',
 ];
 const CHECK_INTERVAL = 60 * 1000; // 確認の最短間隔（アプリの出入りのたびに通信しない）
 
