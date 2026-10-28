@@ -1,0 +1,8 @@
+#separator:tab
+#html:true
+#notetype column:1
+#deck column:2
+#tags column:7
+Vocab	例文つき	deploy	配備する	We <b>deploy</b> on Fridays.	金曜にデプロイする。	
+Vocab	例文つき	run	走る	I run every day.[sound:run.mp3]	毎日走る。	
+Vocab	例文つき	go	行く			

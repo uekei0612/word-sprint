@@ -1,0 +1,9 @@
+#separator:tab
+#html:true
+<b>abandon</b>	放棄する<br>見捨てる[sound:abandon.mp3]
+look&nbsp;forward to	楽しみに待つ &amp; 期待する
+"<div>quote ""this""</div>"	"<span style=""color:red"">引用する</span>"
+"tab	here"	タブ, カンマ; 区切り
+multi	"1行目
+2行目"
+&lt;tag&gt;	山括弧
