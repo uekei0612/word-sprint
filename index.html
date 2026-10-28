@@ -34,6 +34,7 @@
       <div class="cur-title"><h2 class="cur-name" id="curName" tabindex="-1"></h2><div class="cur-desc" id="curDesc"></div></div>
     </div>
     <div class="cur-stats" id="curStats"></div>
+    <div class="cur-review" id="curReview" hidden></div>
     <div class="bar" aria-hidden="true"><i id="curBar"></i></div>
     <button id="todayBtn" class="btn primary big"></button>
     <button id="startBtn" class="btn primary big">スタート</button>
@@ -44,7 +45,7 @@
   </div>
   <h2 class="sec-title" id="decksTitle">デッキを選ぶ</h2>
   <div id="decks" role="group" aria-labelledby="decksTitle"></div>
-  <p class="hint kbd-hint">キーボード：Enterでスタート ／ 1〜4で回答 ／ Enterで次へ ／ Zで取り消し ／ Escで中断</p>
+  <p class="hint kbd-hint">キーボード：Enterでスタート ／ 1〜4で回答 ／ Enterで次へ ／ Fで自信なし ／ Zで取り消し ／ Escで中断</p>
 </section>
 
 <section id="quiz" hidden>
@@ -62,6 +63,8 @@
     <div class="timer" id="timer"><div id="timerBar"></div></div>
   </div>
   <div class="choices" id="choices"></div>
+  <!-- 自信なし。答える前でも後でも押せる（正解の後は 380ms で進むので、前もって押しておける） -->
+  <p class="unsure"><button class="chip" id="unsureBtn" aria-pressed="false">🤔 自信なし<span class="kbd-hint">（F）</span></button></p>
   <!-- 回答後の例文。選択肢の下に出し、選択肢の位置を動かさない（押し間違いを招かない） -->
   <div class="card example" id="example" hidden>
     <button class="speak" id="exSpeak" aria-label="例文を読み上げる">🔊</button>
@@ -86,6 +89,10 @@
   <div class="card" id="missedCard">
     <h2>間違えた単語</h2>
     <ul class="list" id="missedList"></ul>
+  </div>
+  <div class="card" id="reviewCard" hidden>
+    <h2>振り返りに入れた単語</h2>
+    <ul class="list" id="reviewList"></ul>
   </div>
   <div class="actions">
     <button class="btn primary big" id="retryMissed" style="margin-top:0">間違えた単語だけもう一度</button>
