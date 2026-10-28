@@ -1,4 +1,4 @@
-const {P, sleep, check, launch, fileUrl, pick, run} = require('./lib');
+const {P, K, sleep, check, launch, fileUrl, pick, run} = require('./lib');
 const INDEX = fileUrl();
 run(async () => {
   const b = await launch(); const p = await b.newPage(); const errs = [];
@@ -21,7 +21,7 @@ run(async () => {
   check('もう一度のときは選択肢の並びを変える', log[reIdx].o !== first.o, `${first.o} / ${log[reIdx].o}`);
   check('結果の正答率は最初の回答で計算（9 / 10）', (await p.$eval('#rScore', e => e.textContent)) === '9 / 10' && /1 問もう一度/.test(await p.$eval('#rRelearn', e => e.textContent)));
   const st = await p.evaluate(P => JSON.parse(localStorage.getItem(P + 'stats')), P);
-  check('もう一度の正解は学習記録に数えない（誤 1・正 0 のまま）', JSON.stringify(st[first.w + '\u0001' + M[first.w]]) .includes('"c":0,"w":1'), JSON.stringify(st[first.w + '\u0001' + M[first.w]]));
+  check('もう一度の正解は学習記録に数えない（誤 1・正 0 のまま）', JSON.stringify(st[K(first.w, M[first.w])]).includes('"c":0,"w":1'), JSON.stringify(st[K(first.w, M[first.w])]));
   // 最後の問題で間違えると、終わる前に出る。もう一度も間違えると最大 2 回まで
   await load();
   for (let i = 0; i < 9; i++) await pick(true);
