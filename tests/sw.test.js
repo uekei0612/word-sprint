@@ -62,13 +62,13 @@ run(async () => {
   fs.appendFileSync(SITE + '/app.js', '\nwindow.__ver = 3;\n');
   await sleep(INTERVAL + 500);
   await p.click('#startBtn'); await sleep(100);
-  await p.evaluate(() => localStorage.removeItem('wordsprint.v1.stats'));
+  await p.evaluate(() => localStorage.removeItem('wordsprint.v2.stats'));
   await p.keyboard.press('1'); await sleep(100); // 1 問答えた状態
   const visible = () => p.evaluate(() => { Object.defineProperty(document, 'hidden', {configurable: true, get: () => false}); document.dispatchEvent(new Event('visibilitychange')); });
   await visible(); // アプリに戻ってきたときの確認
   const got3 = await p.waitForFunction(async () => (await (await caches.match('app.js')).text()).includes('__ver = 3;'), {timeout: 10000}).then(() => true, () => false);
   await sleep(1500);
-  const mid = await p.evaluate(P => ({quiz: !document.querySelector('#quiz').hidden, rec: Object.keys(JSON.parse(localStorage.getItem(P + 'stats') || '{}')).length, counter: document.querySelector('#counter').textContent}), 'wordsprint.v1.');
+  const mid = await p.evaluate(P => ({quiz: !document.querySelector('#quiz').hidden, rec: Object.keys(JSON.parse(localStorage.getItem(P + 'stats') || '{}')).length, counter: document.querySelector('#counter').textContent}), 'wordsprint.v2.');
   check('クイズの途中で新しい版がそろっても、読み込み直さない（クイズが続いている）', got3 && await ver() === 2 && mid.quiz && mid.rec === 1, JSON.stringify({got3, ...mid}));
   await p.keyboard.press('Escape'); await sleep(300);
   check('結果画面でも読み込み直さない', await ver() === 2 && await p.$eval('#result', e => !e.hidden));

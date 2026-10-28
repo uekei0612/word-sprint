@@ -2,7 +2,7 @@
 (() => {
 // 調整用の値はここに集める
 const CONFIG = {
-  defaults: {deck:'toeic300-basic', dir:'e2j', count:20, limit:0, speak:false, example:'ng'},
+  defaults: {deck:'toeic300-basic', dir:'e2j', count:20, limit:0, speak:false, example:'ng', newPerDay:10},
   // 設定の選択肢。[値, 表示]。ホームのチップは押すたびに次の値へ回る
   options: {
     dir:   [['e2j', '英→日'], ['j2e', '日→英'], ['mix', 'ミックス']],
@@ -11,21 +11,36 @@ const CONFIG = {
     speak: [[false, 'オフ'], [true, 'オン']],
     // 例文を出す場面。出したときは自動で次へ進まず、タップ / Enter を待つ（読む時間を取る）
     example: [['ng', '間違えたとき'], ['all', '毎回'], ['off', '出さない']],
+    newPerDay: [[5, '5語'], [10, '10語'], [20, '20語'], [0, '出さない']], // 「今日の復習」に入れる新しい語の 1 日の上限（デッキごと）
   },
   nextDelayOk: 380,    // 正解後、次の問題へ進むまで（ms）
   nextDelayNg: 1800,   // 不正解後、次の問題へ進むまで（ms）
   tapGuard: 250,       // 回答直後のタップを「次へ」と取り違えない猶予（ms）
   timerLow: 0.3,       // 残り時間がこの割合を切るとバーを赤くする
-  weakMax: 20,         // 「苦手な単語を集中練習」の最大語数
+  weakMax: 20,         // 「振り返り」の集中練習の最大語数
   // 間違えた語を同じクイズの gap 問後にもう一度出す。1 語につき max 回まで（正答率・記録には数えない）
   relearn: {gap: 4, max: 2},
   streakShow: 3,       // この連続正解数から 🔥 を出す
   // 出題の重み。記録あり: base + scale * (誤+1)/(正+誤+2)、記録なし: unseen
   weight: {base:0.3, scale:4, unseen:2.3},
-  // 定着の基準：正解 minCorrect 回以上、かつ正解が誤答の ratio 倍以上
+  // 間隔反復（「今日の復習」）。Leitner 方式：正解で箱を 1 つ上げ、箱の間隔（日）だけ空けて次に出す。
+  // 間違えたら箱 0（その日のうちにもう一度）。masterBox 以上の箱を「定着」とする。
+  // 日付は dayStart 時で切り替える（夜中の 0 時台の学習を前の日に数える。Anki と同じ）
+  srs: {intervals:[0, 1, 3, 7, 14, 30, 60, 120], masterBox:4, reviewMax:100, dayStart:4},
+  // 振り返り（#2・#5・#7）。自信なし（手動）・迷った正解（回答時間）・リーチ（何度も忘れる）を 1 つの入れ物に集める。
+  // 印を付けた後に clearAfter 回続けて自信を持って正解したら外す。印のある語は通常の出題で weight だけ出やすくする
+  review: {clearAfter: 2, weight: 1.5},
+  // 迷った正解：その人の正解時間の中央値（記録が minCards 語以上あるとき。無ければ base ms）の ratio 倍を超えたら。
+  // min ms 以下は迷いとしない。制限時間ありでは残り (1 - nearLimit) を切ってからの正解も迷いとする
+  slow: {ratio: 1.8, min: 1500, base: 3000, minCards: 10, nearLimit: 0.85},
+  // リーチ：覚えた後に lapses 回以上忘れた、または誤答が wrong 回以上で、まだ定着していない語。記録には持たず毎回判定する
+  leech: {lapses: 4, wrong: 6},
+  // 箱を持たない記録（v2 より前）の箱を推定するときだけ使う旧基準：正解 minCorrect 回以上、かつ正解が誤答の ratio 倍以上
   master: {minCorrect:3, ratio:3},
   speechLang: 'en-US',
-  storagePrefix: 'wordsprint.v1.',
+  // 保存の版。v2 で学習記録を出題方向ごとに分けた（#3）。前の版の保存は消さずに残す（古い版に戻しても記録が残る）
+  storagePrefix: 'wordsprint.v2.',
+  oldPrefix: 'wordsprint.v1.',
 };
 
 const POS = {n:'名詞', v:'動詞', adj:'形容詞', adv:'副詞', phr:'熟語'};
@@ -66,7 +81,10 @@ const CHECK = {
     if (!isObj(v)) return {value: {}, ok: false};
     const value = {}; let ok = true;
     for (const [k, s] of Object.entries(v)) {
-      if (isObj(s) && isCount(s.c) && isCount(s.w) && (s.t === undefined || typeof s.t === 'number')) value[k] = s; else ok = false;
+      // b（箱）・l（忘れた回数）・r（振り返りの印）・k（印の後の連続正解）・a（正解時間 ms）は 0 以上の整数、d（次の日）・f（初めての日）は整数。間隔反復の値は無くてもよい
+      const opt = (x, f) => x === undefined || f(x);
+      if (isObj(s) && isCount(s.c) && isCount(s.w) && opt(s.t, x => typeof x === 'number') && opt(s.b, isCount) && opt(s.l, isCount)
+        && opt(s.d, Number.isInteger) && opt(s.f, Number.isInteger) && opt(s.r, isCount) && opt(s.k, isCount) && opt(s.a, isCount)) value[k] = s; else ok = false;
     }
     return {value, ok};
   },
@@ -103,6 +121,32 @@ function load(k, def) {
   }
   return r.value;
 }
+// 学習記録は単語・意味・出題方向ごと（英→日と日→英は別の記録。Anki の 1 ノート 2 カードと同じ）
+const DIRS = ['e2j', 'j2e'];
+const wKey = it => it.w + '\u0001' + it.m;
+const sKey = (it, dir) => wKey(it) + '\u0001' + dir;
+// 方向の無い記録（v1・古いバックアップ）を両方向に写す。どちらの方向で付いた正誤かは分からないため
+function splitStats(old) {
+  const out = {};
+  for (const [k, s] of Object.entries(old)) for (const d of DIRS) out[k + '\u0001' + d] = {...s};
+  return out;
+}
+// v1 の保存を v2 へ一度だけ写す（v2 の保存が 1 つも無いとき）。記録は splitStats、ほかはそのまま
+function migrateV1() {
+  try {
+    const keys = Array.from({length: localStorage.length}, (_, i) => localStorage.key(i));
+    if (keys.some(k => k && k.startsWith(PREFIX))) return;
+    for (const k of keys) {
+      if (!k || !k.startsWith(CONFIG.oldPrefix) || k.startsWith(CONFIG.oldPrefix + 'broken.')) continue;
+      const name = k.slice(CONFIG.oldPrefix.length), raw = localStorage.getItem(k);
+      if (name !== 'stats') { localStorage.setItem(PREFIX + name, raw); continue; }
+      let v = null; try { v = JSON.parse(raw); } catch (e) {}
+      if (isObj(v)) localStorage.setItem(PREFIX + 'stats', JSON.stringify(splitStats(v)));
+      else localStorage.setItem(PREFIX + 'stats', raw); // 壊れていれば load が退避して直す
+    }
+  } catch (e) { saveFailed(); }
+}
+migrateV1();
 const settings = Object.assign({}, CONFIG.defaults, load('settings', {}));
 let stats = load('stats', {});
 let customDecks = load('decks', null);
@@ -129,19 +173,18 @@ if (settings.deck === 'toeic') settings.deck = 'toeic300-core'; // 旧「TOEIC�
 const canSpeak = 'speechSynthesis' in window;
 
 const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.random() * (i + 1) | 0; [a[i], a[j]] = [a[j], a[i]]; } return a; };
-const sKey = it => it.w + '\u0001' + it.m;
 const usable = d => d && d.words.length >= 4;
 // どのデッキにも無くなった記録（内蔵デッキで意味の書き方を変えた語など）を、今の書き方の記録へ移す。
 // 記録のキーは「単語＋意味」なので、そのままだと記録が外れる。内蔵デッキでのその単語の意味が
 // 1 つに決まるときだけ移し、両方に記録があれば回数を足す。移したキーを返す
 function moveStaleStats() {
-  const live = new Set(allDecks().flatMap(d => d.words.map(sKey))), meaning = new Map();
+  const live = new Set(allDecks().flatMap(d => d.words.flatMap(it => DIRS.map(dir => sKey(it, dir))))), meaning = new Map();
   for (const it of BUILTIN_DECKS.flatMap(d => d.words)) meaning.set(it.w, meaning.has(it.w) && meaning.get(it.w) !== it.m ? null : it.m);
   const changed = [];
   for (const k of Object.keys(stats)) {
-    const w = k.slice(0, k.indexOf('\u0001')), m = meaning.get(w);
-    if (live.has(k) || !m) continue;
-    const to = sKey({w, m}), a = stats[k], b = stats[to] || {c:0, w:0}, t = Math.max(a.t || 0, b.t || 0);
+    const [w, , dir] = k.split('\u0001'), m = meaning.get(w);
+    if (live.has(k) || !m || !DIRS.includes(dir)) continue;
+    const to = sKey({w, m}, dir), a = stats[k], b = stats[to] || {c:0, w:0}, t = Math.max(a.t || 0, b.t || 0);
     stats[to] = t ? {c: a.c + b.c, w: a.w + b.w, t} : {c: a.c + b.c, w: a.w + b.w};
     delete stats[k]; changed.push(k, to);
   }
@@ -151,15 +194,23 @@ function moveStaleStats() {
 // 選択中のデッキが使えなければ既定のデッキ、それも無ければ最初の内蔵デッキ
 const curDeck = () => [settings.deck, CONFIG.defaults.deck].map(id => allDecks().find(x => x.id === id)).find(usable) || BUILTIN_DECKS.find(usable);
 const deck = () => curDeck().words;
-function weight(it) { const s = stats[sKey(it)], W = CONFIG.weight; return s ? W.base + W.scale * (s.w + 1) / (s.c + s.w + 2) : W.unseen; }
+// 出題する方向。ミックスは両方向の記録（カード）から選ぶ
+const dirsFor = () => settings.dir === 'mix' ? DIRS : [settings.dir];
+function weight(it, dir) {
+  const s = stats[sKey(it, dir)], W = CONFIG.weight;
+  return s ? W.base + W.scale * (s.w + 1) / (s.c + s.w + 2) + (s.r || isLeech(s) ? CONFIG.review.weight : 0) : W.unseen;
+}
+// 重みつきで n 語選び、出題の列（{it, dir} のカード）にする。ミックスでは方向ごとの重みで選び、
+// 同じ語を 1 回のクイズで両方向に出さない
 function sample(list, n) {
-  const pool = list.map(it => ({it, wt: weight(it)}));
-  const out = []; n = Math.min(n || pool.length, pool.length);
+  const pool = list.flatMap(it => dirsFor().map(dir => ({it, dir, wt: weight(it, dir)})));
+  const out = []; n = Math.min(n || list.length, list.length);
   while (out.length < n) {
     let tot = 0; for (const p of pool) tot += p.wt;
     let r = Math.random() * tot, i = 0;
     for (; i < pool.length - 1; i++) { r -= pool[i].wt; if (r <= 0) break; }
-    out.push(pool.splice(i, 1)[0].it);
+    const {it, dir} = pool[i]; out.push({it, dir});
+    for (let j = pool.length - 1; j >= 0; j--) if (pool[j].it === it) pool.splice(j, 1);
   }
   return out;
 }
@@ -185,17 +236,87 @@ function show(id) {
   if (id === 'home') reloadIfIdle();
 }
 
-/* ---------- home ---------- */
-function deckStats(words) {
-  let seen = 0, master = 0, c = 0, w = 0; const weak = [];
+/* ---------- 間隔反復 ---------- */
+// 記録の s.b は箱、s.d は次に出す日、s.f は初めて答えた日、s.l は覚えた後に忘れた回数。日は dayNo の通し番号
+const SRS = CONFIG.srs, TOP = SRS.intervals.length - 1;
+const dayNo = ts => Math.floor((ts - new Date(ts).getTimezoneOffset() * 60000 - SRS.dayStart * 3600000) / 86400000);
+const today = () => dayNo(Date.now());
+// 箱を持たない記録は、正誤回数から箱を推定し、最後に答えた日から箱の間隔で次の日を決める（保存し直さない）
+function srsOf(s) {
+  if (s.b !== undefined) return {b: s.b, d: s.d};
+  const old = s.c >= CONFIG.master.minCorrect && s.c >= s.w * CONFIG.master.ratio;
+  const b = old ? SRS.masterBox : Math.min(Math.max(s.c - s.w, 0), SRS.masterBox - 1);
+  return {b, d: s.t ? dayNo(s.t) + SRS.intervals[b] : today()};
+}
+// 回答を箱に反映する。予定日前の正解（自由な練習）では箱を上げない。間違いは予定日に関係なく箱 0 へ。
+// 自信なし・迷った正解（hard）は箱を上げず、今の箱（最低 1）の間隔で出し直す（Anki の「難しい」）
+function schedule(s, ok, isNew, hard) {
+  const t = today(), {b, d} = isNew ? {b: 0, d: t} : srsOf(s);
+  if (isNew) s.f = t;
+  if (!ok) { if (b > 0) s.l = (s.l || 0) + 1; s.b = 0; s.d = t; }
+  else if (d > t) { s.b = b; s.d = d; }
+  else { s.b = hard ? Math.max(b, 1) : Math.min(b + 1, TOP); s.d = t + SRS.intervals[s.b]; }
+}
+// 振り返りの印 r（1：自信なし、2：迷った正解）。付けたら連続正解 k を 0 から数え直し、clearAfter 回で外す
+const R_UNSURE = 1, R_SLOW = 2;
+function markReview(s, ok, add) {
+  if (add) { s.r = (s.r || 0) | add; s.k = 0; return; }
+  if (!s.r) return;
+  if (!ok) { s.k = 0; return; }
+  s.k = (s.k || 0) + 1;
+  if (s.k >= CONFIG.review.clearAfter) { delete s.r; delete s.k; }
+}
+const isLeech = s => ((s.l || 0) >= CONFIG.leech.lapses || s.w >= CONFIG.leech.wrong) && srsOf(s).b < SRS.masterBox;
+// 迷った正解か。基準はその人の正解時間（記録の a）の中央値
+function isSlow(ms) {
+  const SL = CONFIG.slow, as = Object.values(stats).map(s => s.a).filter(Boolean).sort((x, y) => x - y);
+  const base = as.length >= SL.minCards ? as[as.length >> 1] : SL.base;
+  return ms > Math.max(SL.min, base * SL.ratio) || (!!settings.limit && ms > settings.limit * 1000 * SL.nearLimit);
+}
+// 今日の分（今のデッキ・今の出題方向）。復習は予定日を過ぎた順、新しい語はデッキの並び順で 1 日の上限まで。
+// 1 語につき 1 枚（ミックスで同じ語を両方向に出さない）
+function todayQueue(words) {
+  const t = today(), dirs = dirsFor(), due = [], fresh = []; let newDone = 0, tomorrow = 0;
   for (const it of words) {
-    const s = stats[sKey(it)]; if (!s) continue;
-    seen++; c += s.c; w += s.w;
-    if (s.c >= CONFIG.master.minCorrect && s.c >= s.w * CONFIG.master.ratio) master++;
-    if (s.w > 0) weak.push(it);
+    let pick = null, freshDir = null, next = false;
+    for (const dir of dirs) {
+      const s = stats[sKey(it, dir)];
+      if (!s) { if (!freshDir) freshDir = dir; continue; }
+      if (s.f === t) newDone++;
+      const {d} = srsOf(s);
+      if (d <= t && (!pick || d < pick.d)) pick = {it, dir, d};
+      if (d === t + 1) next = true;
+    }
+    if (pick) due.push(pick); else if (freshDir) fresh.push({it, dir: freshDir});
+    if (next) tomorrow++; // 明日の予定（今日の分が終わったときに出す）
   }
-  weak.sort((a, b) => weight(b) - weight(a));
-  return {seen, master, c, w, weak};
+  due.sort((a, b) => a.d - b.d);
+  const review = due.slice(0, SRS.reviewMax).map(({it, dir}) => ({it, dir}));
+  const add = fresh.slice(0, Math.max(0, settings.newPerDay - newDone));
+  return {review, add, tomorrow};
+}
+
+/* ---------- home ---------- */
+// 今の出題方向（ミックスは両方向）での集計。定着は選んだ方向すべてで定着した語。
+// 振り返り（weak）はカード（{it, dir}）で、リーチ → 印あり → 誤答あり の順、同じ中では重みの大きい順。
+// ミックスでは 1 語につき 1 枚。leech・unsure・slow は印ごとの語数
+const mastered = s => !!s && srsOf(s).b >= SRS.masterBox;
+function deckStats(words) {
+  let seen = 0, master = 0, c = 0, w = 0, leech = 0, unsure = 0, slow = 0; const weak = [], dirs = dirsFor();
+  for (const it of words) {
+    const ss = dirs.map(dir => stats[sKey(it, dir)]); if (!ss.some(Boolean)) continue;
+    seen++;
+    for (const s of ss) if (s) { c += s.c; w += s.w; }
+    if (ss.every(mastered)) master++;
+    if (ss.some(s => s && isLeech(s))) leech++;
+    if (ss.some(s => s && s.r & R_UNSURE)) unsure++;
+    if (ss.some(s => s && s.r & R_SLOW)) slow++;
+    const rank = s => !s ? 0 : isLeech(s) ? 3 : s.r ? 2 : s.w > 0 ? 1 : 0;
+    const bad = dirs.map((dir, i) => ({it, dir, rk: rank(ss[i]), wt: weight(it, dir)})).filter(x => x.rk);
+    if (bad.length) weak.push(bad.reduce((a, b) => b.rk > a.rk || (b.rk === a.rk && b.wt > a.wt) ? b : a));
+  }
+  weak.sort((a, b) => b.rk - a.rk || b.wt - a.wt);
+  return {seen, master, c, w, leech, unsure, slow, weak: weak.map(({it, dir}) => ({it, dir}))};
 }
 // デッキ一覧（ホーム）。内蔵デッキは group の順、自作デッキは最後に並べる。押すとその場で選ぶ。
 // スクロールを減らすため見出しは置かず、1 つのタイルの並びにする（見出しごとに行の空きが出る）
@@ -252,15 +373,22 @@ function renderHome() {
     seg.querySelectorAll('button').forEach(b => { const on = String(settings[key]) === b.dataset.val; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); });
   });
   const cur = curDeck(); renderDecks(cur);
-  const {seen, master, c, w, weak} = deckStats(cur.words);
+  const {seen, master, c, w, weak, leech, unsure, slow} = deckStats(cur.words);
   $('#curName').textContent = cur.name;
   $('#curDesc').textContent = cur.builtin ? cur.desc : 'マイデッキ';
   $('#curStats').textContent = `出題 ${seen}/${cur.words.length} · 定着 ${master} · 正答率 ${c + w ? Math.round(c / (c + w) * 100) + '%' : '—'}`;
   $('#curBar').style.width = master / cur.words.length * 100 + '%';
+  const marks = [[leech, 'リーチ'], [unsure, '自信なし'], [slow, '迷った']].filter(([n]) => n).map(([n, l]) => `${l} ${n}`);
+  $('#curReview').hidden = !marks.length; $('#curReview').textContent = '振り返り：' + marks.join(' · ');
   const n = settings.count ? Math.min(settings.count, cur.words.length) : cur.words.length;
   $('#startBtn').textContent = `スタート（${n}問）`;
+  // 今日の分があればそれを主のボタンにし、無ければ「完了」と明日の予定を出してスタートを主にする
+  const tq = todayQueue(cur.words), tn = tq.review.length + tq.add.length, tb = $('#todayBtn');
+  tb.disabled = !tn; tb.classList.toggle('primary', !!tn); $('#startBtn').classList.toggle('primary', !tn);
+  tb.textContent = tn ? `今日の復習（復習 ${tq.review.length}・新規 ${tq.add.length}）` : `今日の分は完了 ✓${tq.tomorrow ? `（明日 ${tq.tomorrow} 語）` : ''}`;
+  tb.onclick = () => { const q = todayQueue(curDeck().words), all = shuffle([...q.review, ...q.add]); start(settings.count ? all.slice(0, settings.count) : all); };
   const wb = $('#weakBtn'), wn = Math.min(weak.length, CONFIG.weakMax);
-  wb.hidden = !wn; wb.textContent = `苦手な ${wn} 語を集中練習`;
+  wb.hidden = !wn; wb.textContent = `振り返り ${wn} 語を集中練習`;
   wb.onclick = () => start(shuffle(weak.slice(0, CONFIG.weakMax)));
   for (const k of Object.keys(CHIPS)) {
     const b = $('#chips [data-key="' + k + '"]'); if (!b) continue;
@@ -296,8 +424,7 @@ $('#resetBtn').onclick = () => { if (confirm('学習記録（正誤履歴）を�
 /* ---------- quiz ---------- */
 let Q = null;
 const gloss = m => m.split(/[、，,;；/／]/).map(s => s.trim()).filter(Boolean);
-function makeQ(it, d) {
-  const dir = settings.dir === 'mix' ? (Math.random() < .5 ? 'e2j' : 'j2e') : settings.dir;
+function makeQ(it, dir, d) {
   const others = d.filter(x => x.m !== it.m && x.w !== it.w);
   // 語義が 1 つでも重なる語（「発表する」と「発表する、提示する」）は正解が 2 つに見えるので、
   // 同じ品詞で重ならない語 → 重ならない語 → 残り、の順に選ぶ
@@ -311,16 +438,16 @@ function makeQ(it, d) {
 }
 function start(items) {
   if (!items.length) return;
-  // items は出題の列。間違えた語を途中に差し込むので、re[i] で出し直しかどうかを持つ。base は最初の問題数
-  Q = {items, re: items.map(() => false), base: items.length, again: new Map(), relearned: 0, i:0, ok:0, missed:[], times:[], streak:0, best:0, locked:false, raf:0, to:0};
+  // items は出題の列（{it, dir} のカード）。間違えた語を途中に差し込むので、re[i] で出し直しかどうかを持つ。base は最初の問題数
+  Q = {items, re: items.map(() => false), base: items.length, again: new Map(), relearned: 0, i:0, ok:0, missed:[], flagged:[], times:[], streak:0, best:0, locked:false, raf:0, to:0};
   show('quiz'); render();
 }
 // keep を渡すと同じ選択肢の並びで出し直す（取り消したとき）
 function render(keep) {
-  const it = Q.items[Q.i], re = Q.re[Q.i];
-  let q = keep || makeQ(it, deck());
+  const {it, dir} = Q.items[Q.i], re = Q.re[Q.i];
+  let q = keep || makeQ(it, dir, deck());
   // 出し直しでは、前に出したときと選択肢の並びを変える
-  for (let n = 0; !keep && re && n < 5 && q.opts.map(q.label).join() === Q.again.get(it).order; n++) q = makeQ(it, deck());
+  for (let n = 0; !keep && re && n < 5 && q.opts.map(q.label).join() === Q.again.get(it).order; n++) q = makeQ(it, dir, deck());
   Q.q = q; Q.locked = false;
   const nth = Q.re.slice(0, Q.i + 1).filter(x => !x).length;
   $('#counter').textContent = re ? 'もう一度' : `${nth} / ${Q.base}`;
@@ -338,6 +465,7 @@ function render(keep) {
     box.appendChild(b);
   });
   $('#tapNext').hidden = true; $('#undoBox').hidden = true; $('#example').hidden = true;
+  Q.unsure = false; setUnsure();
   $('#qcard').classList.remove('ok', 'ng');
   $('#streak').textContent = Q.streak >= CONFIG.streakShow ? `🔥 ${Q.streak}連続` : '';
   $('#score').textContent = `正解 ${Q.ok}`;
@@ -366,31 +494,41 @@ function startTimer() {
 function answer(i) {
   if (!Q || Q.locked) return;
   Q.locked = true; Q.lockedAt = performance.now(); cancelAnimationFrame(Q.raf);
-  const {it, ans, dir} = Q.q, ok = i === ans, k = sKey(it);
+  const {it, ans, dir} = Q.q, ok = i === ans, k = sKey(it, dir), card = Q.items[Q.i], ms = performance.now() - Q.qt0;
   // 押して間違えたときだけ、回答前の状態を取っておいて取り消せるようにする（押し間違い対策）
   Q.undo = ok || i < 0 ? null : {k, s: stats[k] ? {...stats[k]} : null, ok: Q.ok, streak: Q.streak, best: Q.best, missed: Q.missed.slice(), times: Q.times.length,
-    items: Q.items.slice(), re: Q.re.slice(), again: new Map([...Q.again].map(([w, a]) => [w, {...a}])), relearned: Q.relearned};
+    items: Q.items.slice(), re: Q.re.slice(), again: new Map([...Q.again].map(([w, a]) => [w, {...a}])), relearned: Q.relearned, flagged: Q.flagged.slice()};
   const re = Q.re[Q.i];
   [...$('#choices').children].forEach((b, j) => {
     b.disabled = true;
     b.classList.add(j === ans ? 'ok' : j === i ? 'ng' : 'dim');
   });
-  if (re) Q.relearned++;
-  else { // 出し直しの回答は、記録・スコア・回答時間に数えない（同じ回の中で覚えた答えで水増ししない）
-    Q.times.push(performance.now() - Q.qt0);
-    const s = stats[k] || (stats[k] = {c:0, w:0});
+  if (re) { // 出し直しの回答は、記録・スコア・回答時間に数えない（同じ回の中で覚えた答えで水増ししない）。自信なしの印だけは付ける
+    Q.relearned++;
+    if (Q.unsure && stats[k]) { markReview(stats[k], ok, R_UNSURE); saveStats([k]); }
+    Q.slowNote = false;
+  } else {
+    Q.times.push(ms);
+    const isNew = !stats[k], s = stats[k] || (stats[k] = {c:0, w:0});
+    const slow = ok && !Q.unsure && isSlow(ms), add = (Q.unsure ? R_UNSURE : 0) | (slow ? R_SLOW : 0);
+    schedule(s, ok, isNew, ok && !!add);
+    markReview(s, ok, add);
+    if (ok) s.a = Math.round(s.a ? s.a * 0.7 + ms * 0.3 : ms); // 正解時間の平均（直近ほど重く）
+    if (add && !Q.flagged.some(x => x.card.it === it)) Q.flagged.push({card, why: slow ? '迷った' : '自信なし'});
+    Q.slowNote = slow;
     if (ok) { s.c++; Q.ok++; Q.streak++; Q.best = Math.max(Q.best, Q.streak); }
-    else { s.w++; Q.streak = 0; if (!Q.missed.includes(it)) Q.missed.push(it); }
+    else { s.w++; Q.streak = 0; if (!Q.missed.some(x => x.it === it)) Q.missed.push(card); }
     s.t = Date.now(); saveStats([k]);
   }
-  if (!ok) relearnLater(it);
+  if (!ok) relearnLater(card);
   $('#qcard').classList.add(ok ? 'ok' : 'ng');
   $('#announce').textContent = ok ? '正解' : `${i < 0 ? '時間切れ' : '不正解'}。正解は ${Q.q.label(it)}`;
+  if (Q.slowNote) $('#announce').textContent += '。時間がかかったので振り返りに入れました';
   $('#score').textContent = `正解 ${Q.ok}`;
   if (settings.speak && dir === 'j2e') speak(it.w);
   $('#undoBox').hidden = !Q.undo;
   // 例文を出したときは読み終わるまで待つ。出さないときは今までどおり自動で次へ
-  if (showExample(it, ok)) $('#tapNext').hidden = false;
+  if (showExample(it, ok, stats[k])) $('#tapNext').hidden = false;
   else if (ok) Q.to = setTimeout(next, CONFIG.nextDelayOk);
   else { $('#tapNext').hidden = false; Q.to = setTimeout(next, CONFIG.nextDelayNg); }
 }
@@ -405,9 +543,9 @@ function fillExample(el, it) {
   const mk = document.createElement('mark'); mk.textContent = t.slice(at, at + b.length);
   el.append(t.slice(0, at), mk, t.slice(at + b.length));
 }
-// 回答後の例文。設定と正誤で出すか決め、出したら true
-function showExample(it, ok) {
-  const on = it.e && (settings.example === 'all' || (settings.example === 'ng' && !ok));
+// 回答後の例文。設定と正誤で出すか決め、出したら true。リーチの語は正解でも出す（覚え方を変えるきっかけ）
+function showExample(it, ok, s) {
+  const on = it.e && (settings.example === 'all' || (settings.example === 'ng' && (!ok || (!!s && isLeech(s)))));
   $('#example').hidden = !on;
   if (!on) return false;
   fillExample($('#exEn'), it); $('#exJa').textContent = it.j;
@@ -416,12 +554,12 @@ function showExample(it, ok) {
   return true;
 }
 // 間違えた語を gap 問後に差し込む。残りが gap 問より少なければ最後に出す
-function relearnLater(it) {
-  const a = Q.again.get(it) || {n: 0};
+function relearnLater(card) {
+  const a = Q.again.get(card.it) || {n: 0};
   if (a.n >= CONFIG.relearn.max) return;
-  a.n++; a.order = Q.q.opts.map(Q.q.label).join(); Q.again.set(it, a);
+  a.n++; a.order = Q.q.opts.map(Q.q.label).join(); Q.again.set(card.it, a);
   const at = Math.min(Q.i + 1 + CONFIG.relearn.gap, Q.items.length);
-  Q.items.splice(at, 0, it); Q.re.splice(at, 0, true);
+  Q.items.splice(at, 0, card); Q.re.splice(at, 0, true);
 }
 // 直前の回答（間違えたもの）を取り消し、記録とスコアを回答前に戻して同じ問題を出し直す
 function undo() {
@@ -429,7 +567,7 @@ function undo() {
   const u = Q.undo; Q.undo = null; clearTimeout(Q.to);
   if (u.s) stats[u.k] = u.s; else delete stats[u.k];
   saveStats([u.k]);
-  Object.assign(Q, {ok: u.ok, streak: u.streak, best: u.best, missed: u.missed, items: u.items, re: u.re, again: u.again, relearned: u.relearned}); Q.times.length = u.times;
+  Object.assign(Q, {ok: u.ok, streak: u.streak, best: u.best, missed: u.missed, items: u.items, re: u.re, again: u.again, relearned: u.relearned, flagged: u.flagged}); Q.times.length = u.times;
   render(Q.q);
   $('#announce').textContent = '取り消しました。もう一度答えてください';
 }
@@ -456,7 +594,7 @@ function finish() {
   $('#rBest').textContent = Q.best;
   $('#rRelearn').textContent = Q.relearned ? `間違えた語を ${Q.relearned} 問もう一度出しました（正答率には数えません）` : '';
   const ul = $('#missedList'); ul.innerHTML = '';
-  for (const it of Q.missed) {
+  for (const {it} of Q.missed) {
     const li = document.createElement('li');
     li.innerHTML = '<b></b><span></span>';
     li.firstChild.textContent = it.w; li.firstChild.lang = 'en'; li.lastChild.textContent = it.m;
@@ -470,11 +608,19 @@ function finish() {
     ul.appendChild(li);
   }
   $('#missedCard').hidden = !Q.missed.length;
+  // 振り返りに入れた語（間違えた語は上に出ているので除く）
+  const fl = Q.flagged.filter(x => !Q.missed.some(m => m.it === x.card.it)), rl = $('#reviewList'); rl.innerHTML = '';
+  for (const {card: {it}, why} of fl) {
+    const li = document.createElement('li'); li.innerHTML = '<b></b><span></span>';
+    li.firstChild.textContent = it.w; li.firstChild.lang = 'en'; li.lastChild.textContent = `${it.m}（${why}）`;
+    rl.appendChild(li);
+  }
+  $('#reviewCard').hidden = !fl.length;
   $('#retryMissed').hidden = !Q.missed.length;
   show('result');
 }
 $('#quiz').addEventListener('click', e => {
-  if (e.target.closest('#quitBtn, #speakBtn, #undoBtn, #exSpeak')) return;
+  if (e.target.closest('#quitBtn, #speakBtn, #undoBtn, #exSpeak, #unsureBtn')) return;
   if (Q && Q.locked && performance.now() - Q.lockedAt > CONFIG.tapGuard) next();
 });
 // 別アプリ・別タブにいた間は回答時間に数えない（戻った瞬間に時間切れにしない）
@@ -487,6 +633,22 @@ document.addEventListener('visibilitychange', () => {
 });
 $('#quitBtn').onclick = quit;
 $('#undoBtn').onclick = undo;
+// 「自信なし」。答える前に押しておくか、答えた後（次へ進む前）に押す。答えた後は記録の印をその場で付け外しする
+function setUnsure() { const b = $('#unsureBtn'); b.setAttribute('aria-pressed', Q.unsure); b.classList.toggle('on', Q.unsure); }
+function toggleUnsure() {
+  if (!Q || $('#quiz').hidden) return;
+  Q.unsure = !Q.unsure; setUnsure();
+  if (!Q.locked) return;
+  const k = sKey(Q.q.it, Q.q.dir), s = stats[k]; if (!s) return;
+  if (Q.unsure) markReview(s, true, R_UNSURE);
+  else { s.r = (s.r || 0) & ~R_UNSURE; if (!s.r) { delete s.r; delete s.k; } }
+  const has = Q.flagged.findIndex(x => x.card.it === Q.q.it && x.why === '自信なし');
+  if (Q.unsure && has < 0) Q.flagged.push({card: Q.items[Q.i], why: '自信なし'});
+  if (!Q.unsure && has >= 0) Q.flagged.splice(has, 1);
+  saveStats([k]);
+  clearTimeout(Q.to); $('#tapNext').hidden = false; // 押したら自動で進まず、タップ / Enter を待つ
+}
+$('#unsureBtn').onclick = toggleUnsure;
 $('#speakBtn').onclick = () => Q && speak(Q.q.it.w);
 $('#exSpeak').onclick = () => Q && speak(Q.q.it.e);
 $('#retryMissed').onclick = () => { if (Q) start(shuffle(Q.missed.slice())); };
@@ -594,16 +756,19 @@ $('#fileIn').addEventListener('change', e => {
 // 記録のキーは「単語＋意味」なので、意味だけ直すと記録が外れる。
 // 単語が一意に対応するときだけ、旧キーの記録を新キーへ引き継ぐ
 function carryStats(deckId, oldWords, newWords) {
-  const newKeys = new Set(newWords.map(sKey)), count = (list, w) => list.filter(x => x.w === w).length;
-  const usedElsewhere = new Set(allDecks().filter(x => x.id !== deckId).flatMap(x => x.words.map(sKey)));
+  const newKeys = new Set(newWords.map(wKey)), count = (list, w) => list.filter(x => x.w === w).length;
+  const usedElsewhere = new Set(allDecks().filter(x => x.id !== deckId).flatMap(x => x.words.map(wKey)));
   const changed = [];
   for (const it of newWords) {
-    const k = sKey(it);
-    if (stats[k] || count(newWords, it.w) !== 1 || count(oldWords, it.w) !== 1) continue;
-    const from = sKey(oldWords.find(x => x.w === it.w));
-    if (newKeys.has(from) || !stats[from]) continue;
-    stats[k] = {...stats[from]}; changed.push(k);
-    if (!usedElsewhere.has(from)) { delete stats[from]; changed.push(from); } // 他デッキと共有している記録は残す
+    if (count(newWords, it.w) !== 1 || count(oldWords, it.w) !== 1) continue;
+    const old = oldWords.find(x => x.w === it.w);
+    if (newKeys.has(wKey(old))) continue;
+    for (const dir of DIRS) { // 方向ごとに引き継ぐ
+      const k = sKey(it, dir), from = sKey(old, dir);
+      if (stats[k] || !stats[from]) continue;
+      stats[k] = {...stats[from]}; changed.push(k);
+      if (!usedElsewhere.has(wKey(old))) { delete stats[from]; changed.push(from); } // 他デッキと共有している記録は残す
+    }
   }
   if (changed.length) saveStats(changed);
 }
@@ -629,6 +794,7 @@ document.addEventListener('keydown', e => {
     else if (e.key === 'Enter' || e.key === ' ') { if (Q && Q.locked) next(); e.preventDefault(); }
     else if (e.key === 'Escape') quit();
     else if (e.key === 'z' || e.key === 'Z' || e.key === 'Backspace') { undo(); e.preventDefault(); }
+    else if (e.key === 'f' || e.key === 'F') { toggleUnsure(); e.preventDefault(); }
   } else if (e.key === 'Enter' && e.target.closest && e.target.closest('button, a')) {
     // フォーカス中のボタンの Enter はそのボタンに任せる（奪ってスタートしない）
   } else if (!$('#home').hidden && e.key === 'Enter') { startNew(); e.preventDefault(); }
@@ -652,7 +818,7 @@ $('#saveErrClose').onclick = () => { $('#saveErrBar').hidden = true; };
 
 /* ---------- 学習記録の書き出し・読み込み（バックアップ） ---------- */
 // 記録はこの端末のブラウザにしか無い（iPhone のホーム画面アプリは Safari とも別）。逃げ道はファイルだけ
-const BACKUP_FORMAT = 1; // 保存形式を変えたら上げ、readBackup で古い版も読めるようにする
+const BACKUP_FORMAT = 2; // 保存形式を変えたら上げ、readBackup で古い版も読めるようにする（2：記録を出題方向ごとに分けた）
 const ymd = d => [d.getFullYear(), d.getMonth() + 1, d.getDate()].map(n => String(n).padStart(2, '0')).join('');
 async function exportBackup() {
   const data = {app: 'word-sprint', format: BACKUP_FORMAT, exportedAt: new Date().toISOString(), settings, stats, decks: customDecks};
@@ -670,8 +836,9 @@ async function exportBackup() {
 // 読み込んだファイルを検証して {settings, stats, decks, exportedAt} にする。Word Sprint の記録でなければ null
 function readBackup(text) {
   let v; try { v = JSON.parse(text); } catch (e) { return null; }
-  if (!isObj(v) || v.app !== 'word-sprint' || v.format !== BACKUP_FORMAT) return null;
-  return {settings: CHECK.settings(v.settings).value, stats: CHECK.stats(v.stats).value, decks: CHECK.decks(v.decks).value, exportedAt: v.exportedAt};
+  if (!isObj(v) || v.app !== 'word-sprint' || !(v.format >= 1 && v.format <= BACKUP_FORMAT)) return null;
+  const st = CHECK.stats(v.stats).value;
+  return {settings: CHECK.settings(v.settings).value, stats: v.format === 1 ? splitStats(st) : st, decks: CHECK.decks(v.decks).value, exportedAt: v.exportedAt};
 }
 // 統合：単語ごとに回答数の多い方（同数なら新しい方）を残す。自作デッキは足し、中身が同じものは重複させない
 function mergeBackup(b) {
@@ -700,7 +867,7 @@ $('#importFile').addEventListener('change', e => {
     pendingImport = readBackup(text);
     if (!pendingImport) { alert('Word Sprint で書き出した学習記録のファイルではないか、ファイルが壊れています。'); return; }
     const at = Date.parse(pendingImport.exportedAt);
-    $('#importSummary').textContent = `${isNaN(at) ? '日時不明' : new Date(at).toLocaleString('ja-JP')} に書き出した記録です（単語 ${Object.keys(pendingImport.stats).length} 語分・自作デッキ ${pendingImport.decks.length} 個）。`;
+    $('#importSummary').textContent = `${isNaN(at) ? '日時不明' : new Date(at).toLocaleString('ja-JP')} に書き出した記録です（単語 ${new Set(Object.keys(pendingImport.stats).map(k => k.split('\u0001', 2).join('\u0001'))).size} 語分・自作デッキ ${pendingImport.decks.length} 個）。`;
     $('#importDlg').showModal();
   });
 });

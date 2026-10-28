@@ -1,4 +1,4 @@
-const {P, sleep, check, launch, fileUrl, run} = require('./lib');
+const {P, K, sleep, check, launch, fileUrl, run} = require('./lib');
 const INDEX = fileUrl();
 run(async () => {
   const b = await launch(); const p = await b.newPage(); const errs = [];
@@ -14,7 +14,7 @@ run(async () => {
   const snap = () => p.evaluate(P => [localStorage.getItem(P + 'stats'), document.querySelector('#score').textContent, document.querySelector('#streak').textContent], P);
   const order = () => p.$$eval('.choice', bs => bs.map(b => b.lastChild.textContent).join());
   // 既存記録あり：2 問正解して連続を作り、3 問目で押し間違えて取り消す
-  await load({'gamma\u0001う': {c: 2, w: 1, t: 5}});
+  await load({[K('gamma', 'う')]: {c: 2, w: 1, t: 5}});
   await p.click('#startBtn'); await sleep(80);
   for (let r = 0; r < 2; r++) { await p.click(`.choice:nth-child(${await idx(true) + 1})`); await sleep(500); }
   const before = await snap(); const w3 = await cur(); const o3 = await order();
@@ -29,7 +29,7 @@ run(async () => {
   await sleep(2000);
   check('取り消した後は自動で次へ進まない', (await cur()) === w3 && await p.$$eval('.choice', bs => bs.every(b => !b.disabled)));
   // 答え直しは正しく記録
-  const k3 = w3 + '\u0001' + M[w3];
+  const k3 = K(w3, M[w3]);
   const pre = JSON.parse(before[0] || '{}')[k3] || {c: 0, w: 0};
   await p.click(`.choice:nth-child(${await idx(true) + 1})`); await sleep(80);
   const st = await p.evaluate(P => JSON.parse(localStorage.getItem(P + 'stats')), P);

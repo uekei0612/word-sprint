@@ -7,7 +7,10 @@ const {pathToFileURL} = require('url');
 const puppeteer = require('puppeteer');
 
 const ROOT = path.resolve(__dirname, '..');
-const P = 'wordsprint.v1.'; // localStorage のキーの接頭辞（app.js の CONFIG.storagePrefix）
+const P = 'wordsprint.v2.'; // localStorage のキーの接頭辞（app.js の CONFIG.storagePrefix）
+const P1 = 'wordsprint.v1.'; // 前の版（記録に出題方向が無い）
+// 学習記録のキー：単語・意味・出題方向
+const K = (w, m, dir = 'e2j') => w + '\u0001' + m + '\u0001' + dir;
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 const results = [];
@@ -73,4 +76,4 @@ function run(main) {
   }, e => { console.log('ERROR', e.stack || e); process.exit(1); });
 }
 
-module.exports = {ROOT, P, sleep, check, launch, fileUrl, copySite, serve, seed, getStore, meanings, pick, run};
+module.exports = {ROOT, P, P1, K, sleep, check, launch, fileUrl, copySite, serve, seed, getStore, meanings, pick, run};
