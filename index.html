@@ -27,6 +27,11 @@
     <h1>Word <span>Sprint</span></h1>
     <p class="muted tagline">4択で英単語を高速周回。苦手な単語ほどよく出ます。</p>
   </header>
+  <!-- ホーム画面に追加する案内（#19）。ブラウザで開いているときだけ app.js が出す -->
+  <div class="install-bar" id="installBar" role="note" hidden>
+    <p><b>ホーム画面に追加</b><span id="installText"></span></p>
+    <div class="install-actions"><button class="btn small primary" id="installBtn" hidden>インストール</button><button class="btn small ghost" id="installClose">閉じる</button></div>
+  </div>
   <!-- 上に毎回使うもの（今のデッキ・進み具合・スタート・設定の要約）、その下にデッキ一覧。
        デッキはホームで 1 タップで選ぶ。設定・バックアップは ⚙ のダイアログに畳む -->
   <div class="card current">

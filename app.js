@@ -1130,6 +1130,29 @@ $('#exportBtn').onclick = $('#saveErrExport').onclick = () => { exportBackup(); 
 const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
 if (standalone && navigator.storage && navigator.storage.persist) navigator.storage.persisted().then(p => p || navigator.storage.persist()).catch(() => {});
 
+/* ---------- ホーム画面に追加する案内（#19） ---------- */
+// iOS にはインストールを促す仕組みが無く、共有メニューの「ホーム画面に追加」を知らないと気付かない。
+// ブラウザで開いているときだけホームに出し、閉じたら出さない。ホーム画面のアプリは記録が別なので、使い込む前に知らせる。
+// Android の Chrome などは beforeinstallprompt でインストールのボタンを出す。file:// では追加できないので出さない
+const isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+let installEvt = null;
+function showInstallHint() {
+  const bar = $('#installBar');
+  if (standalone || location.protocol === 'file:' || store.get('installHintClosed', false) || !(isIOS || installEvt)) { bar.hidden = true; return; }
+  // 記録があるなら、ホーム画面のアプリへは書き出し → 読み込みで移せることも添える
+  const moved = Object.keys(stats).length ? '今の記録は ⚙ の「書き出す」→ アプリで「読み込む」で移せます。' : '';
+  $('#installText').textContent = isIOS
+    ? `共有ボタン →「ホーム画面に追加」で、アプリとして全画面・オフラインで使えます。アプリの学習記録はこのブラウザとは別になります。${moved}`
+    : `インストールすると、アプリとして全画面・オフラインで使えます。アプリの学習記録はこのブラウザとは別になる場合があります。${moved}`;
+  $('#installBtn').hidden = !installEvt || isIOS; // iOS は手順だけ（押せるインストールが無い）
+  bar.hidden = false;
+}
+window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installEvt = e; showInstallHint(); });
+window.addEventListener('appinstalled', () => { installEvt = null; $('#installBar').hidden = true; });
+$('#installBtn').onclick = () => { if (!installEvt) return; installEvt.prompt(); installEvt = null; $('#installBtn').hidden = true; };
+$('#installClose').onclick = () => { store.set('installHintClosed', true); $('#installBar').hidden = true; };
+showInstallHint();
+
 /* ---------- ホーム画面アプリ（service worker） ---------- */
 // file:// では登録できない（失敗しても普通に動く）。更新の確認と差し替えは sw.js 側
 if ('serviceWorker' in navigator && location.protocol !== 'file:') {
