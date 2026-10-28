@@ -33,11 +33,11 @@ run(async () => {
   await page.click('#settingsBtn'); await sleep(100); await page.focus('.seg[data-key=count] button[data-val="50"]'); await page.keyboard.press('Enter'); await sleep(100); await page.keyboard.press('Escape'); await sleep(100);
   const count = await page.evaluate(() => JSON.parse(localStorage.getItem('wordsprint.v2.settings')).count);
   check('A1 設定ボタン+Enter は設定変更だけ（スタートしない）', await vis('home') && count === 50, `count=${count}`);
-  // 苦手な単語を集中練習
+  // 振り返りの集中練習
   const wn = await page.$eval('#weakBtn', e => e.textContent.match(/(\d+) 語/)[1]);
   await page.focus('#weakBtn'); await page.keyboard.press('Enter'); await sleep(100);
   const wc = await page.$eval('#counter', e => e.textContent);
-  check('A1 「苦手な単語を集中練習」+Enter で苦手語が始まる', await vis('quiz') && wc === `1 / ${wn}`, `counter=${wc} weak=${wn}`);
+  check('A1 「振り返りを集中練習」+Enter で振り返りの語が始まる', await vis('quiz') && wc === `1 / ${wn}`, `counter=${wc} weak=${wn}`);
 
   // --- A2: 制限時間 3 秒、非表示 4 秒 → 戻っても時間切れにならない
   await load({settings:{deck:'basic', dir:'e2j', count:10, limit:3, speak:false}});

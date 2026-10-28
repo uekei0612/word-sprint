@@ -25,9 +25,9 @@ run(async () => {
   let h = await home();
   check('英→日：英→日の記録だけで集計する（全語が定着・苦手なし）', /出題 6\/6 · 定着 6 · 正答率 100%/.test(h.st) && !h.weak, JSON.stringify(h));
   await setDir('j2e'); h = await home();
-  check('日→英：英→日の記録は数えない（出題 1・定着 0・苦手 1 語）', /出題 1\/6 · 定着 0 · 正答率 0%/.test(h.st) && h.weak === '苦手な 1 語を集中練習', JSON.stringify(h));
+  check('日→英：英→日の記録は数えない（出題 1・定着 0・苦手 1 語）', /出題 1\/6 · 定着 0 · 正答率 0%/.test(h.st) && h.weak === '振り返り 1 語を集中練習', JSON.stringify(h));
   await setDir('mix'); h = await home();
-  check('ミックス：両方向で定着した語だけを定着に数える', /出題 6\/6 · 定着 0/.test(h.st) && h.weak === '苦手な 1 語を集中練習', JSON.stringify(h));
+  check('ミックス：両方向で定着した語だけを定着に数える', /出題 6\/6 · 定着 0/.test(h.st) && h.weak === '振り返り 1 語を集中練習', JSON.stringify(h));
   check('デッキのタイルも今の方向で集計する', (await p.$eval('.deck.on .dm', e => e.textContent)) === '6語 · 定着 0');
 
   // 2. 日→英で答えると、日→英の記録だけが増える
