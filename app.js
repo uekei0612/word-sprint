@@ -875,20 +875,71 @@ function splitExample(rest, sep) {
   return f.length >= 2 && f[0] && looksLikeSentence(f[1]) ? {m: f[0], e: f[1], j: f.slice(2).join(sep)} : null;
 }
 const isHeader =(w, m) => /^(word|english|en|term|英単語|単語|英語)$/i.test(w) && /^(meaning|japanese|ja|definition|意味|日本語|訳)$/i.test(m);
+// Anki の「ノートをプレーンテキストで書き出し」（#10）。先頭の見出し（#separator:tab・#html:true・#deck column:3 など）を読む。
+// #columns:単語,意味,-,例文,和訳 で列の割り当てを指定できる（- は読まない列。Anki 以外の表にも使える）
+const SEPS = {tab: '\t', comma: ',', semicolon: ';', pipe: '|', space: ' ', colon: ':'};
+const COLS = {word: 'w', '単語': 'w', '英単語': 'w', meaning: 'm', '意味': 'm', example: 'e', '例文': 'e', translation: 'j', '和訳': 'j'};
+const ENT = {nbsp: ' ', amp: '&', lt: '<', gt: '>', quot: '"', apos: "'"};
+const decodeEnt = s => s.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (all, e) => e[0] !== '#' ? (ENT[e.toLowerCase()] || all)
+  : String.fromCodePoint(e[1] === 'x' || e[1] === 'X' ? parseInt(e.slice(2), 16) : +e.slice(1)));
+// 欄の HTML（#html:true のときだけ。false のとき Anki は文字だけを書き出すので、<tag> のような語はそのまま）と音声の参照を取り除く
+const cleanField = (s, html) => (html ? decodeEnt(s.replace(/<br\s*\/?>|<\/(div|p|li)>/gi, ' ').replace(/<[^>]*>/g, '')) : s)
+  .replace(/\[sound:[^\]]*\]/g, '').replace(/\s+/g, ' ').trim();
+// sep で区切った行と列にする。" で囲んだ列の中の区切り・改行と "" を扱う（Anki は改行やタブを含む欄を囲む）
+function splitRecords(text, sep) {
+  const recs = []; let row = [], f = '', q = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (q) { if (c !== '"') f += c; else if (text[i + 1] === '"') { f += '"'; i++; } else q = false; }
+    else if (c === '"' && !f) q = true;
+    else if (c === sep) { row.push(f); f = ''; }
+    else if (c === '\n' || c === '\r') { if (c === '\r' && text[i + 1] === '\n') i++; row.push(f); recs.push(row); row = []; f = ''; }
+    else f += c;
+  }
+  if (f || row.length) { row.push(f); recs.push(row); }
+  return recs;
+}
+function parseTable(body, head, add) {
+  const sep = SEPS[(head.separator || '').toLowerCase()] || (head.separator && head.separator.length === 1 ? head.separator : '\t');
+  const html = head.html === 'true';
+  // ノートタイプ・デッキ・タグ・GUID の列（「#deck column:3」は 1 から数える）は単語・意味として読まない
+  const skip = new Set(Object.keys(head).filter(k => / column$/.test(k)).map(k => +head[k] - 1));
+  const cols = head.columns ? head.columns.split(/[,、\s]+/).filter(Boolean).map(x => COLS[x.toLowerCase()] || null) : null;
+  for (const rec of splitRecords(body, sep)) {
+    const f = rec.filter((_, i) => !skip.has(i)).map(x => cleanField(x, html));
+    if (!f.some(Boolean)) continue;
+    let x = {};
+    if (cols) cols.forEach((k, i) => { if (k && f[i] && !x[k]) x[k] = f[i]; });
+    // 既定は 1 列目＝単語・2 列目＝意味。3 列目が英文なら例文、4 列目を和訳にする。ほかの列（読み・メモなど）は読まない
+    else x = {w: f[0], m: f[1], ...(f[2] && looksLikeSentence(f[2]) ? {e: f[2], j: f[3] || ''} : {})};
+    add(x.w, x.m, x.e ? x : null);
+  }
+}
 function parseList(text) {
   const out = [], seen = new Set();
-  for (let line of text.split(/\r?\n/)) {
+  const add = (w, m, ex) => {
+    if (!w || !m || isHeader(w, m)) return;
+    const k = w + '\u0001' + m; if (seen.has(k)) return; seen.add(k);
+    out.push(ex ? {w, p:'', m, e: ex.e, j: ex.j || '', b: ''} : {w, p:'', m});
+  };
+  // 先頭の見出しに Anki の書き出しの印か #columns: があれば、表として読む
+  const lines = text.replace(/^\uFEFF/, '').split(/\r?\n/), head = {}; let n = 0;
+  for (; n < lines.length && (lines[n].startsWith('#') || !lines[n].trim()); n++) {
+    const m = lines[n].match(/^#\s*([^:]+?)\s*:\s*(.*?)\s*$/); if (m) head[m[1].toLowerCase()] = m[2];
+  }
+  if (head.separator || head.html || head.columns) { parseTable(lines.slice(n).join('\n'), head, add); return out; }
+  for (let line of lines) {
     line = line.trim();
     if (!line || line.startsWith('#')) continue;
     const pair = splitPair(line);
     if (!pair) continue;
-    const [w, m1, rest, sep] = pair, ex = splitExample(rest, sep), mean = ex ? ex.m : m1;
-    if (!w || !mean || isHeader(w, mean)) continue;
-    const k = w + '\u0001' + mean; if (seen.has(k)) continue; seen.add(k);
-    out.push(ex ? {w, p:'', m: mean, e: ex.e, j: ex.j, b: ''} : {w, p:'', m: mean});
+    const [w, m1, rest, sep] = pair, ex = splitExample(rest, sep);
+    add(w, ex ? ex.m : m1, ex);
   }
   return out;
 }
+// Anki の書き出し・#columns: のある表か（ファイルを読んだとき、そのままではなく「単語,意味」の行に直して入れる）
+const isTable = text => /^\uFEFF?(#[^\n]*\n|\s*\n)*#\s*(separator|html|columns)\s*:/i.test(text);
 const updCount = () => { $('#editCount').textContent = parseList($('#customText').value).length + ' 語'; };
 $('#customText').addEventListener('input', updCount);
 let editingId = null;
@@ -924,7 +975,13 @@ $('#sampleBtn').onclick = () => {
 $('#fileIn').addEventListener('change', e => {
   const f = e.target.files[0]; if (!f) return;
   const r = new FileReader();
-  r.onload = () => { const t = $('#customText'); if (!$('#deckName').value.trim()) $('#deckName').value = f.name.replace(/\.[^.]+$/, ''); t.value = (t.value.trim() ? t.value.trim() + '\n' : '') + String(r.result).replace(/^\uFEFF/, ''); updCount(); };
+  r.onload = () => {
+    const t = $('#customText'), raw = String(r.result).replace(/^\uFEFF/, '');
+    if (!$('#deckName').value.trim()) $('#deckName').value = f.name.replace(/\.[^.]+$/, '');
+    // Anki の書き出しは HTML などを取り除いた「単語,意味」の行に直して入れる（中身を確かめてから保存できる）
+    const text = isTable(raw) ? parseList(raw).map(toLine).join('\n') : raw;
+    t.value = (t.value.trim() ? t.value.trim() + '\n' : '') + text; updCount();
+  };
   r.readAsText(f); e.target.value = '';
 });
 // 記録のキーは「単語＋意味」なので、意味だけ直すと記録が外れる。
