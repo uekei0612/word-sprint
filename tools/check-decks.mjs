@@ -1,6 +1,7 @@
 // 内蔵デッキの検証。デッキを直したら `node tools/check-decks.mjs` で確かめる（問題があれば終了コード 1）
 //
 // - 形式：列数（3 か 6）、品詞の記号、前後の空白、バッククォート、例文中に強調する語形があるか
+// - 例文：1 つのデッキの中で、例文のある語と無い語を混ぜない（内蔵デッキはすべて例文つき。#21）
 // - 見出し：デッキ内の重複、デッキ間で同じ単語の意味の書き方がそろっているか
 //   （学習記録のキーは「単語＋意味」なので、書き方が違うと記録を共有しない）
 // - 配信：decks/ のファイル・index.html の <script>・sw.js の FILES が一致しているか
@@ -35,7 +36,7 @@ for (const d of decks) {
   if (ids.has(d.id)) errors.push(`id「${d.id}」が重複している`);
   ids.add(d.id);
   if (!d.name || !d.desc) errors.push(`${d.id}: name か desc が無い`);
-  const seen = new Set(), words = [];
+  const seen = new Set(), words = []; let withEx = 0;
   d.raw.trim().split('\n').forEach((line, i) => {
     const at = `${d.id} ${i + 1} 行目「${line}」`, c = line.split('|');
     const [w, p, m, ex, exJa, hl] = c;
@@ -46,10 +47,11 @@ for (const d of decks) {
     if (c.length === 6 && (!ex || !exJa || !hl)) errors.push(`${at}: 例文・和訳・強調する語形のどれかが空`);
     if (c.length === 6 && hl && !ex.includes(hl)) errors.push(`${at}: 例文に強調する語形「${hl}」が無い`);
     if (seen.has(w)) errors.push(`${at}: 同じデッキに「${w}」が 2 回ある`);
-    seen.add(w); words.push({w, p, m});
+    seen.add(w); words.push({w, p, m}); if (c.length === 6) withEx++;
     if (!byWord.has(w)) byWord.set(w, []);
     byWord.get(w).push({id: d.id, m});
   });
+  if (withEx && withEx !== words.length) errors.push(`${d.id}: 例文のある語が ${withEx} / ${words.length} 語（すべてに付けるか、すべて外す）`);
   const gloss = m => m.split('、');
   let near = 0;
   for (let i = 0; i < words.length; i++) for (let j = i + 1; j < words.length; j++)

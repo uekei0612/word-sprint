@@ -1,0 +1,13 @@
+#separator:tab
+#html:true
+#guid column:1
+#notetype column:2
+#deck column:3
+#tags column:6
+v3q:uU6?74	Basic	英単語::TOEIC	<b>abandon</b>	放棄する<br>見捨てる[sound:abandon.mp3]	keep
+"N~KkbS#X}a"	Basic	英単語::TOEIC	look&nbsp;forward to	楽しみに待つ &amp; 期待する	
+E+1BWIHxz!	Basic	英単語::TOEIC	"<div>quote ""this""</div>"	"<span style=""color:red"">引用する</span>"	tag1 tag2
+"Dmw~c6#0/}"	Basic	英単語::TOEIC	"tab	here"	タブ, カンマ; 区切り	
+"n?}#}rOfx}"	Basic	英単語::TOEIC	multi	"1行目
+2行目"	
+jS9l_YBuR`	Basic	英単語::TOEIC	&lt;tag&gt;	山括弧	

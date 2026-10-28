@@ -1,0 +1,12 @@
+#separator:tab
+#html:false
+#guid column:1
+#notetype column:2
+#deck column:3
+#tags column:6
+v3q:uU6?74	Basic	英単語::TOEIC	abandon	放棄する 見捨てる	keep
+"N~KkbS#X}a"	Basic	英単語::TOEIC	look forward to	楽しみに待つ & 期待する	
+E+1BWIHxz!	Basic	英単語::TOEIC	"quote ""this"""	引用する	tag1 tag2
+"Dmw~c6#0/}"	Basic	英単語::TOEIC	"tab	here"	タブ, カンマ; 区切り	
+"n?}#}rOfx}"	Basic	英単語::TOEIC	multi	1行目 2行目	
+jS9l_YBuR`	Basic	英単語::TOEIC	<tag>	山括弧	

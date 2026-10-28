@@ -27,6 +27,11 @@
     <h1>Word <span>Sprint</span></h1>
     <p class="muted tagline">4択で英単語を高速周回。苦手な単語ほどよく出ます。</p>
   </header>
+  <!-- ホーム画面に追加する案内（#19）。ブラウザで開いているときだけ app.js が出す -->
+  <div class="install-bar" id="installBar" role="note" hidden>
+    <p><b>ホーム画面に追加</b><span id="installText"></span></p>
+    <div class="install-actions"><button class="btn small primary" id="installBtn" hidden>インストール</button><button class="btn small ghost" id="installClose">閉じる</button></div>
+  </div>
   <!-- 上に毎回使うもの（今のデッキ・進み具合・スタート・設定の要約）、その下にデッキ一覧。
        デッキはホームで 1 タップで選ぶ。設定・バックアップは ⚙ のダイアログに畳む -->
   <div class="card current">
@@ -35,17 +40,19 @@
     </div>
     <div class="cur-stats" id="curStats"></div>
     <div class="cur-review" id="curReview" hidden></div>
+    <button class="link-btn" id="suspBtn" aria-haspopup="dialog" hidden></button>
     <div class="bar" aria-hidden="true"><i id="curBar"></i></div>
     <button id="todayBtn" class="btn primary big"></button>
     <button id="startBtn" class="btn primary big">スタート</button>
     <button id="weakBtn" class="btn big" hidden></button>
     <div class="chips" id="chips">
+      <button class="chip icon-chip" id="statsBtn" aria-label="学習統計">📊</button>
       <button class="chip icon-chip" id="settingsBtn" aria-haspopup="dialog" aria-label="設定とバックアップ">⚙</button>
     </div>
   </div>
   <h2 class="sec-title" id="decksTitle">デッキを選ぶ</h2>
   <div id="decks" role="group" aria-labelledby="decksTitle"></div>
-  <p class="hint kbd-hint">キーボード：Enterでスタート ／ 1〜4で回答 ／ Enterで次へ ／ Fで自信なし ／ Zで取り消し ／ Escで中断</p>
+  <p class="hint kbd-hint">キーボード：Enterでスタート ／ 1〜4で回答 ／ Enterで次へ ／ Fで自信なし ／ Xで出題しない ／ Zで取り消し ／ Escで中断</p>
 </section>
 
 <section id="quiz" hidden>
@@ -64,7 +71,9 @@
   </div>
   <div class="choices" id="choices"></div>
   <!-- 自信なし。答える前でも後でも押せる（正解の後は 380ms で進むので、前もって押しておける） -->
-  <p class="unsure"><button class="chip" id="unsureBtn" aria-pressed="false">🤔 自信なし<span class="kbd-hint">（F）</span></button></p>
+  <!-- 出題しない（#9）。覚えた語を外す。正解した後にだけ出す（答える前や間違えた後に押すと、覚えていない語まで外しかねない） -->
+  <p class="unsure"><button class="chip" id="unsureBtn" aria-pressed="false">🤔 自信なし<span class="kbd-hint">（F）</span></button>
+    <button class="chip" id="outBtn" aria-pressed="false" hidden>✓ 覚えた・もう出さない<span class="kbd-hint">（X）</span></button></p>
   <!-- 回答後の例文。選択肢の下に出し、選択肢の位置を動かさない（押し間違いを招かない） -->
   <div class="card example" id="example" hidden>
     <button class="speak" id="exSpeak" aria-label="例文を読み上げる">🔊</button>
@@ -101,11 +110,40 @@
   </div>
 </section>
 
+<!-- 学習統計（#11）。日ごとの記録は 4 時で日を切り替える（今日の復習と同じ） -->
+<section id="stats" hidden>
+  <div class="card">
+    <h2 id="statsTitle" tabindex="-1">学習統計</h2>
+    <div class="tiles">
+      <div><b id="sStreak"></b><small>連続学習</small></div>
+      <div><b id="sToday"></b><small>今日の回答</small></div>
+      <div><b id="sBest"></b><small>最長連続</small></div>
+    </div>
+    <p class="hint" id="sNote"></p>
+  </div>
+  <div class="card">
+    <h2>毎日の回答数</h2>
+    <div class="heat" id="heat" role="group" aria-label="直近 18 週の毎日の回答数"></div>
+    <div class="heat-legend" aria-hidden="true"><span>少</span><i data-lv="0"></i><i data-lv="1"></i><i data-lv="2"></i><i data-lv="3"></i><i data-lv="4"></i><span>多</span></div>
+    <p class="hint heat-info" id="heatInfo" aria-live="polite"></p>
+  </div>
+  <div class="card">
+    <h2 id="fcTitle">今後の復習予定</h2>
+    <div class="fc" id="fcBars"></div>
+  </div>
+  <div class="card" id="trendCard">
+    <h2>正答率の推移（週ごと）</h2>
+    <div id="trend"></div>
+    <p class="hint">左から右へ直近 8 週。棒の高さが正答率、右の数字はいちばん新しい週の正答率です。</p>
+  </div>
+  <div class="actions"><button class="btn ghost" id="statsHome">ホームへ</button></div>
+</section>
+
 <section id="editor" hidden>
   <div class="card">
     <h2 id="editTitle" tabindex="-1">新しいデッキ</h2>
     <input type="text" id="deckName" placeholder="デッキ名（例：英検2級 単語帳）" maxlength="40">
-    <p class="muted" style="font-size:14px;margin:6px 0 4px">1行に1語、「英単語,意味」の形式で入力します。タブ区切りや「|」区切りも使えるので、Excel・スプレッドシートの2列をそのまま貼り付けられます。3・4列目に「例文,和訳」を書くと、答えたあとに例文を出します（例文に , を含むときは "…" で囲みます）。4語以上必要です。</p>
+    <p class="muted" style="font-size:14px;margin:6px 0 4px">1行に1語、「英単語,意味」の形式で入力します。タブ区切りや「|」区切りも使えるので、Excel・スプレッドシートの2列をそのまま貼り付けられます。3・4列目に「例文,和訳」を書くと、答えたあとに例文を出します（例文に , を含むときは "…" で囲みます）。Anki で「ノートをプレーンテキストで」書き出したファイルも読み込めます。4語以上必要です。</p>
     <div class="edit-bar">
       <label class="btn">ファイル読込<input type="file" id="fileIn" accept=".csv,.tsv,.txt" hidden></label>
       <button class="btn ghost" id="sampleBtn">例を挿入</button>
@@ -129,7 +167,7 @@
     <div class="row"><span class="row-label" id="lblLimit">制限時間</span><div class="seg" data-key="limit" role="group" aria-labelledby="lblLimit"></div></div>
     <div class="row"><span class="row-label" id="lblSpeak">自動発音</span><div class="seg" data-key="speak" role="group" aria-labelledby="lblSpeak"></div></div>
     <div class="row"><span class="row-label" id="lblExample">例文</span><div class="seg" data-key="example" role="group" aria-labelledby="lblExample"></div></div>
-    <p class="note">例文のあるデッキ（TOEIC 300・TOEIC 熟語）で、答えたあとに例文と和訳を出します。例文を出したときは、タップ / Enter で次へ進みます。</p>
+    <p class="note">答えたあとに例文と和訳を出します（内蔵デッキはすべて例文つき。自作デッキは CSV の 3・4 列目に書いた語だけ）。例文を出したときは、タップ / Enter で次へ進みます。</p>
     <div class="row"><span class="row-label" id="lblNew">1日の新規</span><div class="seg" data-key="newPerDay" role="group" aria-labelledby="lblNew"></div></div>
     <p class="note">「今日の復習」は、覚えた語を 1・3・7・14・30 日…と間隔を空けて出し直します。正解で間隔が伸び、間違えるとその日のうちにもう一度出ます。新しい語はデッキごとに 1 日この数まで足します。</p>
     <h3>学習記録</h3>
@@ -139,6 +177,14 @@
       <label class="btn">学習記録を読み込む<input type="file" id="importFile" accept=".json,application/json" hidden></label>
       <button class="btn danger" id="resetBtn">学習記録をリセット</button>
     </div>
+  </div>
+</dialog>
+
+<dialog id="suspDlg" class="sheet" aria-labelledby="suspTitle">
+  <div class="sheet-head"><h2 id="suspTitle">出題しない語</h2><button class="btn ghost small" data-close>閉じる</button></div>
+  <div class="sheet-body">
+    <p class="note">このデッキで出題から外した語です。今日の復習・振り返りにも出ません（ほかの語の誤答の選択肢には出ます）。学習記録は残っているので、戻すと続きから出題します。</p>
+    <ul class="list" id="suspList"></ul>
   </div>
 </dialog>
 
