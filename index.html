@@ -41,6 +41,7 @@
     <button id="startBtn" class="btn primary big">スタート</button>
     <button id="weakBtn" class="btn big" hidden></button>
     <div class="chips" id="chips">
+      <button class="chip icon-chip" id="statsBtn" aria-label="学習統計">📊</button>
       <button class="chip icon-chip" id="settingsBtn" aria-haspopup="dialog" aria-label="設定とバックアップ">⚙</button>
     </div>
   </div>
@@ -102,6 +103,35 @@
     <button class="btn" id="againBtn">同じ設定でもう一度</button>
     <button class="btn ghost" id="homeBtn">ホームへ</button>
   </div>
+</section>
+
+<!-- 学習統計（#11）。日ごとの記録は 4 時で日を切り替える（今日の復習と同じ） -->
+<section id="stats" hidden>
+  <div class="card">
+    <h2 id="statsTitle" tabindex="-1">学習統計</h2>
+    <div class="tiles">
+      <div><b id="sStreak"></b><small>連続学習</small></div>
+      <div><b id="sToday"></b><small>今日の回答</small></div>
+      <div><b id="sBest"></b><small>最長連続</small></div>
+    </div>
+    <p class="hint" id="sNote"></p>
+  </div>
+  <div class="card">
+    <h2>毎日の回答数</h2>
+    <div class="heat" id="heat" role="group" aria-label="直近 18 週の毎日の回答数"></div>
+    <div class="heat-legend" aria-hidden="true"><span>少</span><i data-lv="0"></i><i data-lv="1"></i><i data-lv="2"></i><i data-lv="3"></i><i data-lv="4"></i><span>多</span></div>
+    <p class="hint heat-info" id="heatInfo" aria-live="polite"></p>
+  </div>
+  <div class="card">
+    <h2 id="fcTitle">今後の復習予定</h2>
+    <div class="fc" id="fcBars"></div>
+  </div>
+  <div class="card" id="trendCard">
+    <h2>正答率の推移（週ごと）</h2>
+    <div id="trend"></div>
+    <p class="hint">左から右へ直近 8 週。棒の高さが正答率、右の数字はいちばん新しい週の正答率です。</p>
+  </div>
+  <div class="actions"><button class="btn ghost" id="statsHome">ホームへ</button></div>
 </section>
 
 <section id="editor" hidden>

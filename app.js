@@ -37,6 +37,9 @@ const CONFIG = {
   leech: {lapses: 4, wrong: 6},
   // 箱を持たない記録（v2 より前）の箱を推定するときだけ使う旧基準：正解 minCorrect 回以上、かつ正解が誤答の ratio 倍以上
   master: {minCorrect:3, ratio:3},
+  // 学習統計（#11）。回答時間は 1 問 msCap ms までを学習時間に数える（放置した時間を数えない）。
+  // ヒートマップは weeks 週、正答率の推移は trendWeeks 週、復習予定は forecastDays 日。levels は回答数の色の段の下限
+  stats: {msCap: 30000, weeks: 18, trendWeeks: 8, forecastDays: 7, levels: [1, 20, 50, 100]},
   speechLang: 'en-US',
   // 保存の版。v2 で学習記録を出題方向ごとに分けた（#3）。前の版の保存は消さずに残す（古い版に戻しても記録が残る）
   storagePrefix: 'wordsprint.v2.',
@@ -106,6 +109,18 @@ const CHECK = {
     }
     return {value, ok};
   },
+  // 日ごとの記録（#11）。{日: {デッキ: {n 回答数, c 正解数, ms 学習時間}}}。日は dayNo の通し番号
+  daily(v) {
+    if (!isObj(v)) return {value: {}, ok: false};
+    const value = {}; let ok = true;
+    for (const [d, decks] of Object.entries(v)) {
+      if (!/^\d+$/.test(d) || !isObj(decks)) { ok = false; continue; }
+      for (const [id, e] of Object.entries(decks)) {
+        if (isObj(e) && isCount(e.n) && isCount(e.c) && isCount(e.ms) && e.c <= e.n) (value[d] = value[d] || {})[id] = e; else ok = false;
+      }
+    }
+    return {value, ok};
+  },
   // 出題しない語（#9）。単語＋意味のキーの配列
   suspended(v) {
     if (!Array.isArray(v)) return {value: [], ok: false};
@@ -160,6 +175,7 @@ let customDecks = load('decks', null);
 // 出題・今日の復習・振り返りから除くが、誤答の選択肢には使い続ける。学習記録はそのまま残す
 let suspended = new Set(load('suspended', []));
 const saveSuspended = () => store.set('suspended', [...suspended]);
+let daily = load('daily', {});
 // 学習記録の保存。ほかのタブが書いた分を消さないよう、変えた語（keys）だけを最新の保存内容に重ねる。
 // keys を省くと全体を書く（全消去のとき）
 function saveStats(keys) {
@@ -241,10 +257,10 @@ function reloadIfIdle() {
   if (updateReady && !$('#home').hidden && !document.querySelector('dialog[open]')) location.reload();
 }
 // 画面を切り替える。読み上げ機能が新しい画面の頭から読めるよう、見出しへフォーカスを移す
-const SCREEN_HEAD = {home: '#curName', result: '#rScore', editor: '#editTitle'};
+const SCREEN_HEAD = {home: '#curName', result: '#rScore', editor: '#editTitle', stats: '#statsTitle'};
 function show(id) {
   document.querySelectorAll('dialog[open]').forEach(d => d.close());
-  for (const s of ['home','quiz','result','editor']) $('#' + s).hidden = s !== id; window.scrollTo(0, 0);
+  for (const s of ['home','quiz','result','editor','stats']) $('#' + s).hidden = s !== id; window.scrollTo(0, 0);
   if (SCREEN_HEAD[id]) $(SCREEN_HEAD[id]).focus({preventScroll: true});
   if (id === 'home') reloadIfIdle();
 }
@@ -411,14 +427,14 @@ function renderHome() {
     b.textContent = CHIPS[k](); b.setAttribute('aria-label', `${CHIP_NAME[k]}：${CHIPS[k]()}（押すと切り替え）`);
   }
 }
-// 設定チップ。⚙ の前に並べる
+// 設定チップ。📊・⚙ の前に並べる
 for (const k of Object.keys(CHIPS)) {
   const b = document.createElement('button'); b.className = 'chip'; b.dataset.key = k;
   b.onclick = () => {
     const opts = CONFIG.options[k], i = opts.findIndex(([v]) => v === settings[k]);
     settings[k] = opts[(i + 1) % opts.length][0]; store.set('settings', settings); renderHome();
   };
-  $('#chips').insertBefore(b, $('#settingsBtn'));
+  $('#chips').insertBefore(b, $('#statsBtn'));
 }
 $('#settingsBtn').onclick = () => $('#settingsDlg').showModal();
 document.querySelectorAll('dialog [data-close]').forEach(b => { b.onclick = () => b.closest('dialog').close(); });
@@ -435,7 +451,7 @@ document.querySelectorAll('.seg').forEach(seg => {
 });
 const startNew = () => start(sample(active(deck()), settings.count));
 $('#startBtn').onclick = startNew;
-$('#resetBtn').onclick = () => { if (confirm('学習記録（正誤履歴）をすべて消去しますか？')) { stats = {}; saveStats(); renderHome(); } };
+$('#resetBtn').onclick = () => { if (confirm('学習記録（正誤履歴と毎日の記録）をすべて消去しますか？')) { stats = {}; saveStats(); daily = {}; store.set('daily', daily); renderHome(); } };
 
 /* ---------- quiz ---------- */
 let Q = null;
@@ -455,7 +471,7 @@ function makeQ(it, dir, d) {
 function start(items) {
   if (!items.length) return;
   // items は出題の列（{it, dir} のカード）。間違えた語を途中に差し込むので、re[i] で出し直しかどうかを持つ。base は最初の問題数
-  Q = {items, re: items.map(() => false), base: items.length, again: new Map(), relearned: 0, i:0, ok:0, missed:[], flagged:[], times:[], streak:0, best:0, locked:false, raf:0, to:0};
+  Q = {deck: curDeck().id, items, re: items.map(() => false), base: items.length, again: new Map(), relearned: 0, i:0, ok:0, missed:[], flagged:[], times:[], streak:0, best:0, locked:false, raf:0, to:0};
   show('quiz'); render();
 }
 // keep を渡すと同じ選択肢の並びで出し直す（取り消したとき）
@@ -535,6 +551,8 @@ function answer(i) {
     if (ok) { s.c++; Q.ok++; Q.streak++; Q.best = Math.max(Q.best, Q.streak); }
     else { s.w++; Q.streak = 0; if (!Q.missed.some(x => x.it === it)) Q.missed.push(card); }
     s.t = Date.now(); saveStats([k]);
+    if (Q.undo) Q.undo.day = logDay(Q.deck, ok, ms);
+    else logDay(Q.deck, ok, ms);
   }
   if (!ok) relearnLater(card);
   $('#qcard').classList.add(ok ? 'ok' : 'ng');
@@ -584,6 +602,7 @@ function undo() {
   const u = Q.undo; Q.undo = null; clearTimeout(Q.to);
   if (u.s) stats[u.k] = u.s; else delete stats[u.k];
   saveStats([u.k]);
+  if (u.day) logDay(u.day.deck, u.day.ok, u.day.ms, -1);
   Object.assign(Q, {ok: u.ok, streak: u.streak, best: u.best, missed: u.missed, items: u.items, re: u.re, again: u.again, relearned: u.relearned, flagged: u.flagged}); Q.times.length = u.times;
   render(Q.q);
   $('#announce').textContent = '取り消しました。もう一度答えてください';
@@ -706,6 +725,109 @@ $('#exSpeak').onclick = () => Q && speak(Q.q.it.e);
 $('#retryMissed').onclick = () => { if (Q) start(shuffle(Q.missed.slice())); };
 $('#againBtn').onclick = startNew;
 $('#homeBtn').onclick = () => { renderHome(); show('home'); };
+
+/* ---------- 学習統計（#11） ---------- */
+// その日・そのデッキの記録に 1 問足す（sign = -1 で取り消す）。ほかのタブの分を消さないよう、最新の保存内容に足して書く。
+// 足した値を返す（取り消し用）
+function logDay(deck, ok, ms, sign = 1) {
+  let base = null;
+  try { const v = JSON.parse(localStorage.getItem(PREFIX + 'daily') || '{}'); base = CHECK.daily(v).value; } catch (e) {}
+  daily = base || daily;
+  const t = today(), d = daily[t] = daily[t] || {}, e = d[deck] = d[deck] || {n: 0, c: 0, ms: 0};
+  ms = Math.round(Math.min(ms, CONFIG.stats.msCap));
+  e.n = Math.max(0, e.n + sign); e.c = Math.max(0, Math.min(e.n, e.c + (ok ? sign : 0))); e.ms = Math.max(0, e.ms + sign * ms);
+  if (!e.n) delete d[deck];
+  if (!Object.keys(d).length) delete daily[t];
+  store.set('daily', daily);
+  return {deck, ok, ms};
+}
+// 日ごとの合計（全デッキ）
+const dayTotal = d => Object.values(daily[d] || {}).reduce((a, e) => ({n: a.n + e.n, c: a.c + e.c, ms: a.ms + e.ms}), {n: 0, c: 0, ms: 0});
+// 連続学習日数。今日まだ答えていなくても、昨日まで続いていれば途切れていない（今日のうちに答えれば続く）
+function streaks() {
+  const days = Object.keys(daily).map(Number).filter(d => dayTotal(d).n).sort((a, b) => a - b), t = today();
+  let best = 0, run = 0, prev = null;
+  for (const d of days) { run = prev === d - 1 ? run + 1 : 1; best = Math.max(best, run); prev = d; }
+  const has = new Set(days); let cur = 0;
+  for (let d = has.has(t) ? t : t - 1; has.has(d); d--) cur++;
+  return {cur, best, total: days.length};
+}
+// 通し番号の日から日付（4 時区切りの日なので、その日の正午で作る）
+const dayDate = d => new Date(d * 86400000 + 12 * 3600000 + new Date(d * 86400000).getTimezoneOffset() * 60000);
+const WD = '日月火水木金土';
+const mdw = d => { const x = dayDate(d); return `${x.getMonth() + 1}/${x.getDate()}（${WD[x.getDay()]}）`; };
+const minutes = ms => ms >= 60000 ? Math.round(ms / 60000) + '分' : ms ? '1分未満' : '0分';
+// 今後 days 日の復習予定（今のデッキ・今の出題方向。1 語につきいちばん早い日。予定日を過ぎた語は今日に数える）
+function forecast(words, days) {
+  const t = today(), out = Array(days).fill(0);
+  for (const it of active(words)) {
+    const ds = dirsFor().map(dir => stats[sKey(it, dir)]).filter(Boolean).map(s => srsOf(s).d);
+    if (!ds.length) continue;
+    const i = Math.max(Math.min(...ds), t) - t; if (i < days) out[i]++;
+  }
+  return out;
+}
+function renderStats() {
+  const C = CONFIG.stats, t = today(), st = streaks(), td = dayTotal(t);
+  $('#sStreak').textContent = st.cur + '日'; $('#sToday').textContent = td.n + '問'; $('#sBest').textContent = st.best + '日';
+  $('#sNote').textContent = st.total ? `今日の学習時間 ${minutes(td.ms)} · 学習した日 ${st.total}日` : 'まだ記録がありません。答えると、その日の回答数がここに並びます。';
+  // ヒートマップ：列が週（月曜はじまり）、行が曜日。右端の列が今週
+  const hm = $('#heat'); hm.innerHTML = '';
+  const wd = (dayDate(t).getDay() + 6) % 7, start = t - wd - (C.weeks - 1) * 7;
+  hm.style.gridTemplateColumns = `repeat(${C.weeks}, 1fr)`;
+  for (let d = start; d < start + C.weeks * 7; d++) {
+    const b = document.createElement('button'); b.className = 'cell';
+    if (d > t) { b.disabled = true; b.classList.add('future'); b.tabIndex = -1; b.setAttribute('aria-hidden', 'true'); hm.appendChild(b); continue; }
+    const e = dayTotal(d), lv = C.levels.filter(x => e.n >= x).length;
+    b.dataset.lv = lv; if (d === t) b.classList.add('today');
+    const label = `${mdw(d)} ${e.n}問${e.n ? ` · 正答率 ${Math.round(e.c / e.n * 100)}% · ${minutes(e.ms)}` : ''}`;
+    b.setAttribute('aria-label', label); b.title = label;
+    b.onclick = () => { $('#heatInfo').textContent = label; hm.querySelectorAll('.sel').forEach(x => x.classList.remove('sel')); b.classList.add('sel'); };
+    hm.appendChild(b);
+  }
+  $('#heatInfo').textContent = `今日 ${mdw(t)} ${td.n}問（マスを押すとその日の記録）`;
+  // 今後の復習予定
+  const fc = forecast(curDeck().words, C.forecastDays), mx = Math.max(1, ...fc), fb = $('#fcBars'); fb.innerHTML = '';
+  $('#fcTitle').textContent = `今後 ${C.forecastDays} 日の復習予定（${curDeck().name}）`;
+  fc.forEach((n, i) => {
+    const col = document.createElement('div'); col.className = 'col';
+    col.innerHTML = '<span class="v"></span><span class="b"><i></i></span><span class="l"></span>';
+    col.querySelector('.v').textContent = n;
+    col.querySelector('i').style.height = (n / mx * 100) + '%';
+    col.querySelector('.l').textContent = i === 0 ? '今日' : i === 1 ? '明日' : WD[dayDate(t + i).getDay()];
+    col.setAttribute('aria-label', `${i === 0 ? '今日' : mdw(t + i)} ${n}語`); col.setAttribute('role', 'img');
+    fb.appendChild(col);
+  });
+  // デッキ別の正答率の推移（週ごと。直近 trendWeeks 週に答えたデッキだけ。今のデッキを先頭に）
+  const tw = $('#trend'); tw.innerHTML = '';
+  const w0 = t - wd - (C.trendWeeks - 1) * 7, names = new Map(allDecks().map(d => [d.id, d.name])), rows = new Map();
+  for (const [d, decks] of Object.entries(daily)) {
+    const wi = Math.floor((d - w0) / 7); if (wi < 0 || wi >= C.trendWeeks) continue;
+    for (const [id, e] of Object.entries(decks)) {
+      if (!rows.has(id)) rows.set(id, Array.from({length: C.trendWeeks}, () => ({n: 0, c: 0})));
+      const r = rows.get(id)[wi]; r.n += e.n; r.c += e.c;
+    }
+  }
+  const ids = [...rows.keys()].sort((a, b) => (b === curDeck().id) - (a === curDeck().id));
+  for (const id of ids) {
+    const weeks = rows.get(id), last = [...weeks].reverse().find(x => x.n);
+    const row = document.createElement('div'); row.className = 'trow';
+    row.innerHTML = '<span class="tn"></span><span class="tb"></span><span class="tv"></span>';
+    row.querySelector('.tn').textContent = names.get(id) || '削除したデッキ';
+    row.querySelector('.tv').textContent = last ? Math.round(last.c / last.n * 100) + '%' : '';
+    weeks.forEach((x, i) => {
+      const bar = document.createElement('i'); const from = dayDate(w0 + i * 7);
+      const label = `${from.getMonth() + 1}/${from.getDate()}の週 ${x.n ? `正答率 ${Math.round(x.c / x.n * 100)}%（${x.n}問）` : '記録なし'}`;
+      bar.title = label; bar.setAttribute('aria-label', label); bar.setAttribute('role', 'img');
+      if (x.n) bar.style.height = Math.max(4, x.c / x.n * 100) + '%'; else bar.className = 'none';
+      row.querySelector('.tb').appendChild(bar);
+    });
+    tw.appendChild(row);
+  }
+  $('#trendCard').hidden = !ids.length;
+}
+$('#statsBtn').onclick = () => { renderStats(); show('stats'); };
+$('#statsHome').onclick = () => { renderHome(); show('home'); };
 
 /* ---------- editor ---------- */
 const unquote = s => /^"[\s\S]*"$/.test(s) ? s.slice(1, -1).replace(/""/g, '"') : s;
@@ -865,6 +987,7 @@ window.addEventListener('storage', e => {
   if (k === 'stats') stats = v || {};
   else if (k === 'decks') customDecks = v || [];
   else if (k === 'suspended') suspended = new Set(v || []);
+  else if (k === 'daily') daily = v || {};
   else Object.assign(settings, CONFIG.defaults, v || {});
   if (!$('#home').hidden) renderHome();
 });
@@ -875,7 +998,7 @@ $('#saveErrClose').onclick = () => { $('#saveErrBar').hidden = true; };
 const BACKUP_FORMAT = 2; // 保存形式を変えたら上げ、readBackup で古い版も読めるようにする（2：記録を出題方向ごとに分けた）
 const ymd = d => [d.getFullYear(), d.getMonth() + 1, d.getDate()].map(n => String(n).padStart(2, '0')).join('');
 async function exportBackup() {
-  const data = {app: 'word-sprint', format: BACKUP_FORMAT, exportedAt: new Date().toISOString(), settings, stats, decks: customDecks, suspended: [...suspended]};
+  const data = {app: 'word-sprint', format: BACKUP_FORMAT, exportedAt: new Date().toISOString(), settings, stats, decks: customDecks, suspended: [...suspended], daily};
   const name = `word-sprint-backup-${ymd(new Date())}.json`;
   const blob = new Blob([JSON.stringify(data)], {type: 'application/json'});
   // iPhone は共有シートから「ファイルに保存」できる。共有できない環境ではダウンロードにする
@@ -887,13 +1010,13 @@ async function exportBackup() {
   a.href = URL.createObjectURL(blob); a.download = name; a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
-// 読み込んだファイルを検証して {settings, stats, decks, suspended, exportedAt} にする（出題しない語は無くてもよい）。Word Sprint の記録でなければ null
+// 読み込んだファイルを検証して {settings, stats, decks, suspended, daily, exportedAt} にする（出題しない語・日ごとの記録は無くてもよい）。Word Sprint の記録でなければ null
 function readBackup(text) {
   let v; try { v = JSON.parse(text); } catch (e) { return null; }
   if (!isObj(v) || v.app !== 'word-sprint' || !(v.format >= 1 && v.format <= BACKUP_FORMAT)) return null;
   const st = CHECK.stats(v.stats).value;
   return {settings: CHECK.settings(v.settings).value, stats: v.format === 1 ? splitStats(st) : st, decks: CHECK.decks(v.decks).value,
-    suspended: CHECK.suspended(v.suspended || []).value, exportedAt: v.exportedAt};
+    suspended: CHECK.suspended(v.suspended || []).value, daily: CHECK.daily(v.daily || {}).value, exportedAt: v.exportedAt};
 }
 // 統合：単語ごとに回答数の多い方（同数なら新しい方）を残す。自作デッキは足し、中身が同じものは重複させない。出題しない語は合わせる
 function mergeBackup(b) {
@@ -904,6 +1027,10 @@ function mergeBackup(b) {
   }
   stats = merged;
   for (const k of b.suspended) suspended.add(k);
+  // 日ごとの記録は日・デッキごとに回答数の多い方（同じ端末の古い書き出しと足して二重にしない）
+  for (const [d, decks] of Object.entries(b.daily)) for (const [id, e] of Object.entries(decks)) {
+    const cur = (daily[d] = daily[d] || {})[id]; if (!cur || e.n > cur.n) daily[d][id] = e;
+  }
   const sameWords = (a, d) => JSON.stringify(a.words.map(toLine)) === JSON.stringify(d.words.map(toLine));
   b.decks.forEach((d, i) => {
     if (customDecks.some(x => sameWords(x, d))) return;
@@ -912,7 +1039,7 @@ function mergeBackup(b) {
   });
 }
 function replaceBackup(b) {
-  stats = b.stats; customDecks = b.decks; suspended = new Set(b.suspended);
+  stats = b.stats; customDecks = b.decks; suspended = new Set(b.suspended); daily = b.daily;
   for (const k of Object.keys(settings)) delete settings[k];
   Object.assign(settings, CONFIG.defaults, b.settings);
 }
@@ -933,7 +1060,7 @@ function applyImport(mode) {
   (mode === 'merge' ? mergeBackup : replaceBackup)(pendingImport);
   moveStaleStats(); // 古い版で書き出したファイルには、意味の書き方を変える前の記録が入っている
   pendingImport = null; $('#importDlg').close();
-  saveStats(); saveDecks(); saveSuspended(); store.set('settings', settings);
+  saveStats(); saveDecks(); saveSuspended(); store.set('daily', daily); store.set('settings', settings);
   renderHome(); show('home');
   alert('学習記録を読み込みました。');
 }
