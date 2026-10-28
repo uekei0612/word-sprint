@@ -35,6 +35,7 @@
     </div>
     <div class="cur-stats" id="curStats"></div>
     <div class="bar" aria-hidden="true"><i id="curBar"></i></div>
+    <button id="todayBtn" class="btn primary big"></button>
     <button id="startBtn" class="btn primary big">スタート</button>
     <button id="weakBtn" class="btn big" hidden></button>
     <div class="chips" id="chips">
@@ -122,6 +123,8 @@
     <div class="row"><span class="row-label" id="lblSpeak">自動発音</span><div class="seg" data-key="speak" role="group" aria-labelledby="lblSpeak"></div></div>
     <div class="row"><span class="row-label" id="lblExample">例文</span><div class="seg" data-key="example" role="group" aria-labelledby="lblExample"></div></div>
     <p class="note">例文のあるデッキ（TOEIC 300・TOEIC 熟語）で、答えたあとに例文と和訳を出します。例文を出したときは、タップ / Enter で次へ進みます。</p>
+    <div class="row"><span class="row-label" id="lblNew">1日の新規</span><div class="seg" data-key="newPerDay" role="group" aria-labelledby="lblNew"></div></div>
+    <p class="note">「今日の復習」は、覚えた語を 1・3・7・14・30 日…と間隔を空けて出し直します。正解で間隔が伸び、間違えるとその日のうちにもう一度出ます。新しい語はデッキごとに 1 日この数まで足します。</p>
     <h3>学習記録</h3>
     <p class="note">記録はこの端末のブラウザにだけ保存されます。機種変更やアプリの削除に備えて、ときどき書き出してください。</p>
     <div class="actions">
