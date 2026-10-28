@@ -2,7 +2,7 @@
 (() => {
 // 調整用の値はここに集める
 const CONFIG = {
-  defaults: {deck:'toeic300-basic', dir:'e2j', count:20, limit:0, speak:false, example:'ng'},
+  defaults: {deck:'toeic300-basic', dir:'e2j', count:20, limit:0, speak:false, example:'ng', newPerDay:10},
   // 設定の選択肢。[値, 表示]。ホームのチップは押すたびに次の値へ回る
   options: {
     dir:   [['e2j', '英→日'], ['j2e', '日→英'], ['mix', 'ミックス']],
@@ -11,6 +11,7 @@ const CONFIG = {
     speak: [[false, 'オフ'], [true, 'オン']],
     // 例文を出す場面。出したときは自動で次へ進まず、タップ / Enter を待つ（読む時間を取る）
     example: [['ng', '間違えたとき'], ['all', '毎回'], ['off', '出さない']],
+    newPerDay: [[5, '5語'], [10, '10語'], [20, '20語'], [0, '出さない']], // 「今日の復習」に入れる新しい語の 1 日の上限（デッキごと）
   },
   nextDelayOk: 380,    // 正解後、次の問題へ進むまで（ms）
   nextDelayNg: 1800,   // 不正解後、次の問題へ進むまで（ms）
@@ -22,7 +23,11 @@ const CONFIG = {
   streakShow: 3,       // この連続正解数から 🔥 を出す
   // 出題の重み。記録あり: base + scale * (誤+1)/(正+誤+2)、記録なし: unseen
   weight: {base:0.3, scale:4, unseen:2.3},
-  // 定着の基準：正解 minCorrect 回以上、かつ正解が誤答の ratio 倍以上
+  // 間隔反復（「今日の復習」）。Leitner 方式：正解で箱を 1 つ上げ、箱の間隔（日）だけ空けて次に出す。
+  // 間違えたら箱 0（その日のうちにもう一度）。masterBox 以上の箱を「定着」とする。
+  // 日付は dayStart 時で切り替える（夜中の 0 時台の学習を前の日に数える。Anki と同じ）
+  srs: {intervals:[0, 1, 3, 7, 14, 30, 60, 120], masterBox:4, reviewMax:100, dayStart:4},
+  // 箱を持たない記録（v2 より前）の箱を推定するときだけ使う旧基準：正解 minCorrect 回以上、かつ正解が誤答の ratio 倍以上
   master: {minCorrect:3, ratio:3},
   speechLang: 'en-US',
   // 保存の版。v2 で学習記録を出題方向ごとに分けた（#3）。前の版の保存は消さずに残す（古い版に戻しても記録が残る）
@@ -68,7 +73,10 @@ const CHECK = {
     if (!isObj(v)) return {value: {}, ok: false};
     const value = {}; let ok = true;
     for (const [k, s] of Object.entries(v)) {
-      if (isObj(s) && isCount(s.c) && isCount(s.w) && (s.t === undefined || typeof s.t === 'number')) value[k] = s; else ok = false;
+      // b（箱）・l（忘れた回数）は 0 以上の整数、d（次の日）・f（初めての日）は整数。間隔反復の値は無くてもよい
+      const opt = (x, f) => x === undefined || f(x);
+      if (isObj(s) && isCount(s.c) && isCount(s.w) && opt(s.t, x => typeof x === 'number') && opt(s.b, isCount) && opt(s.l, isCount)
+        && opt(s.d, Number.isInteger) && opt(s.f, Number.isInteger)) value[k] = s; else ok = false;
     }
     return {value, ok};
   },
@@ -217,10 +225,53 @@ function show(id) {
   if (id === 'home') reloadIfIdle();
 }
 
+/* ---------- 間隔反復 ---------- */
+// 記録の s.b は箱、s.d は次に出す日、s.f は初めて答えた日、s.l は覚えた後に忘れた回数。日は dayNo の通し番号
+const SRS = CONFIG.srs, TOP = SRS.intervals.length - 1;
+const dayNo = ts => Math.floor((ts - new Date(ts).getTimezoneOffset() * 60000 - SRS.dayStart * 3600000) / 86400000);
+const today = () => dayNo(Date.now());
+// 箱を持たない記録は、正誤回数から箱を推定し、最後に答えた日から箱の間隔で次の日を決める（保存し直さない）
+function srsOf(s) {
+  if (s.b !== undefined) return {b: s.b, d: s.d};
+  const old = s.c >= CONFIG.master.minCorrect && s.c >= s.w * CONFIG.master.ratio;
+  const b = old ? SRS.masterBox : Math.min(Math.max(s.c - s.w, 0), SRS.masterBox - 1);
+  return {b, d: s.t ? dayNo(s.t) + SRS.intervals[b] : today()};
+}
+// 回答を箱に反映する。予定日前の正解（自由な練習）では箱を上げない。間違いは予定日に関係なく箱 0 へ
+function schedule(s, ok, isNew) {
+  const t = today(), {b, d} = isNew ? {b: 0, d: t} : srsOf(s);
+  if (isNew) s.f = t;
+  if (!ok) { if (b > 0) s.l = (s.l || 0) + 1; s.b = 0; s.d = t; }
+  else if (d <= t) { s.b = Math.min(b + 1, TOP); s.d = t + SRS.intervals[s.b]; }
+  else { s.b = b; s.d = d; }
+}
+// 今日の分（今のデッキ・今の出題方向）。復習は予定日を過ぎた順、新しい語はデッキの並び順で 1 日の上限まで。
+// 1 語につき 1 枚（ミックスで同じ語を両方向に出さない）
+function todayQueue(words) {
+  const t = today(), dirs = dirsFor(), due = [], fresh = []; let newDone = 0, tomorrow = 0;
+  for (const it of words) {
+    let pick = null, freshDir = null, next = false;
+    for (const dir of dirs) {
+      const s = stats[sKey(it, dir)];
+      if (!s) { if (!freshDir) freshDir = dir; continue; }
+      if (s.f === t) newDone++;
+      const {d} = srsOf(s);
+      if (d <= t && (!pick || d < pick.d)) pick = {it, dir, d};
+      if (d === t + 1) next = true;
+    }
+    if (pick) due.push(pick); else if (freshDir) fresh.push({it, dir: freshDir});
+    if (next) tomorrow++; // 明日の予定（今日の分が終わったときに出す）
+  }
+  due.sort((a, b) => a.d - b.d);
+  const review = due.slice(0, SRS.reviewMax).map(({it, dir}) => ({it, dir}));
+  const add = fresh.slice(0, Math.max(0, settings.newPerDay - newDone));
+  return {review, add, tomorrow};
+}
+
 /* ---------- home ---------- */
 // 今の出題方向（ミックスは両方向）での集計。定着は選んだ方向すべてで定着した語、苦手はカード（{it, dir}）。
 // ミックスの苦手は 1 語につき重みの大きい方向 1 枚にする
-const mastered = s => !!s && s.c >= CONFIG.master.minCorrect && s.c >= s.w * CONFIG.master.ratio;
+const mastered = s => !!s && srsOf(s).b >= SRS.masterBox;
 function deckStats(words) {
   let seen = 0, master = 0, c = 0, w = 0; const weak = [], dirs = dirsFor();
   for (const it of words) {
@@ -296,6 +347,11 @@ function renderHome() {
   $('#curBar').style.width = master / cur.words.length * 100 + '%';
   const n = settings.count ? Math.min(settings.count, cur.words.length) : cur.words.length;
   $('#startBtn').textContent = `スタート（${n}問）`;
+  // 今日の分があればそれを主のボタンにし、無ければ「完了」と明日の予定を出してスタートを主にする
+  const tq = todayQueue(cur.words), tn = tq.review.length + tq.add.length, tb = $('#todayBtn');
+  tb.disabled = !tn; tb.classList.toggle('primary', !!tn); $('#startBtn').classList.toggle('primary', !tn);
+  tb.textContent = tn ? `今日の復習（復習 ${tq.review.length}・新規 ${tq.add.length}）` : `今日の分は完了 ✓${tq.tomorrow ? `（明日 ${tq.tomorrow} 語）` : ''}`;
+  tb.onclick = () => { const q = todayQueue(curDeck().words), all = shuffle([...q.review, ...q.add]); start(settings.count ? all.slice(0, settings.count) : all); };
   const wb = $('#weakBtn'), wn = Math.min(weak.length, CONFIG.weakMax);
   wb.hidden = !wn; wb.textContent = `苦手な ${wn} 語を集中練習`;
   wb.onclick = () => start(shuffle(weak.slice(0, CONFIG.weakMax)));
@@ -414,7 +470,8 @@ function answer(i) {
   if (re) Q.relearned++;
   else { // 出し直しの回答は、記録・スコア・回答時間に数えない（同じ回の中で覚えた答えで水増ししない）
     Q.times.push(performance.now() - Q.qt0);
-    const s = stats[k] || (stats[k] = {c:0, w:0});
+    const isNew = !stats[k], s = stats[k] || (stats[k] = {c:0, w:0});
+    schedule(s, ok, isNew);
     if (ok) { s.c++; Q.ok++; Q.streak++; Q.best = Math.max(Q.best, Q.streak); }
     else { s.w++; Q.streak = 0; if (!Q.missed.some(x => x.it === it)) Q.missed.push(card); }
     s.t = Date.now(); saveStats([k]);
