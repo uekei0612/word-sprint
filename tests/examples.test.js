@@ -30,7 +30,7 @@ run(async () => {
   check('（前提）例文のある語まで進めた', await reach(w => byW[w].e && byW[w].b && byW[w].b !== 'zzz'));
   let w = await cur(); await choose(true);
   check('既定では、正解したときは例文を出さない', !(await ex()).shown);
-  await sleep(500); check('正解して例文を出さないときは、今までどおり自動で次へ', (await cur()) !== w);
+  await sleep(800); check('正解して例文を出さないときは、今までどおり自動で次へ', (await cur()) !== w);
   await reach(w => byW[w].e && byW[w].b !== 'zzz' && byW[w].b);
   w = await cur(); await choose(false); let e = await ex();
   check('間違えたら例文と和訳を出す', e.shown && e.en === byW[w].e && e.ja === byW[w].j, JSON.stringify(e));

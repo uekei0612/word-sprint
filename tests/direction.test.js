@@ -49,7 +49,7 @@ run(async () => {
     const word = r.en ? r.t : W[r.t]; asked.push([word, r.en ? 'e2j' : 'j2e']);
     const want = r.en ? M[word] : word;
     const j = await p.$$eval('.choice', (bs, t) => bs.findIndex(b => b.lastChild.textContent === t), want);
-    await p.click(`.choice:nth-child(${j + 1})`); await sleep(450);
+    await p.click(`.choice:nth-child(${j + 1})`); await sleep(800);
   }
   st = await stats();
   check('ミックス：1 回のクイズで同じ語は 1 回だけ（6 語で 6 問）', new Set(asked.map(a => a[0])).size === 6 && await p.$eval('#result', e => !e.hidden), JSON.stringify(asked));

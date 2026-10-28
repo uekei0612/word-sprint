@@ -52,7 +52,7 @@ run(async () => {
     rawStats: localStorage.getItem(Object.keys(localStorage).find(k => k.startsWith(P + 'broken.stats.')))}), P);
   check('壊れた stats・decks・settings を開いても画面が動く', st.decksShown === 7 && errs.length === 0, errs.join(';'));
   check('壊れた元データは broken.* に退避される（中身はそのまま）', JSON.stringify(st.broken) === '["decks","settings","stats"]' && st.rawStats === '{bad json', JSON.stringify(st.broken));
-  check('設定は正しい項目だけ残り、壊れた項目は既定値になる', JSON.stringify(st.settings) === '{"deck":"basic","speak":true}' && JSON.stringify(st.on) === '["英→日","20","なし","オン","間違えたとき","10語","端末に合わせる","藍"]', JSON.stringify(st.settings) + ' ' + st.on);
+  check('設定は正しい項目だけ残り、壊れた項目は既定値になる', JSON.stringify(st.settings) === '{"deck":"basic","speak":true}' && JSON.stringify(st.on) === '["英→日","20","なし","オン","間違えたとき","0.6秒","10語","端末に合わせる","藍"]', JSON.stringify(st.settings) + ' ' + st.on);
   check('直した値で保存し直される（次回は退避が増えない）', st.stats === '{}' && st.decks === '[]');
   await p1.goto(BASE); await sleep(200);
   const n2 = await p1.evaluate(P => Object.keys(localStorage).filter(k => k.startsWith(P + 'broken.')).length, P);

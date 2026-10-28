@@ -37,7 +37,7 @@ run(async () => {
   const w2 = await choose(true); await nextQ(); st = await stats();
   check('速い正解：箱 3・印なし', st[K(w2, M[w2])].b === 3 && !st[K(w2, M[w2])].r, JSON.stringify(st[K(w2, M[w2])]));
   // 3. 時間のかかった正解は「迷った」
-  // 正解後は 380ms で次へ進み読み上げ文が消えるので、変わるたびに控えておく（負荷が高いと読む前に消える）
+  // 正解後は設定の時間（既定 0.6 秒）で次へ進み読み上げ文が消えるので、変わるたびに控えておく（負荷が高いと読む前に消える）
   await p.evaluate(() => { window.__ann = []; const a = document.querySelector('#announce'); new MutationObserver(() => window.__ann.push(a.textContent)).observe(a, {childList: true, characterData: true, subtree: true}); });
   await sleep(2200); const w3 = await choose(true);
   const ann = (await p.evaluate(() => window.__ann)).join(' / '); await nextQ(); st = await stats();
