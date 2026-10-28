@@ -9,8 +9,11 @@ run(async () => {
   check('file:// で開いて、ホームが出る', (await p.evaluate(() => location.protocol)) === 'file:' && await p.$eval('#home', e => !e.hidden) && (await p.$eval('#curName', e => e.textContent)) !== '');
   const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
   const want = [...html.matchAll(/<script src="([^"]+)"/g)].map(m => m[1]);
-  const got = await p.evaluate(() => [...document.scripts].map(x => x.getAttribute('src') || 'inline'));
-  check('index.html の順に decks/*.js → app.js だけを読む（インラインのスクリプトなし）', JSON.stringify(got) === JSON.stringify(want) && want[want.length - 1] === 'app.js' && want.slice(0, -1).every(s => s.startsWith('decks/')), got.join(','));
+  const got = await p.evaluate(() => [...document.body.querySelectorAll('script')].map(x => x.getAttribute('src') || 'inline'));
+  check('本文では index.html の順に decks/*.js → app.js だけを読む（インラインのスクリプトなし）', JSON.stringify(got) === JSON.stringify(want) && want[want.length - 1] === 'app.js' && want.slice(0, -1).every(s => s.startsWith('decks/')), got.join(','));
+  // <head> にはライト・ダークをちらつかせずに当てる 1 行だけ（ファイルを読まない）
+  const head = await p.evaluate(() => [...document.head.querySelectorAll('script')].map(x => x.src ? 'src' : x.textContent));
+  check('<head> のスクリプトは画面の明るさを当てるインラインの 1 つだけ', head.length === 1 && /dataset\.theme/.test(head[0]), head.join('|'));
   const n = await p.evaluate(() => window.WORD_SPRINT_DECKS.length);
   check('decks/*.js がすべて内蔵デッキとして読まれる', n === want.length - 1 && (await p.$$eval('#decks .deck:not(.new)', e => e.length)) === n, `${n} デッキ`);
   const css = await p.evaluate(() => [getComputedStyle(document.body).backgroundColor, getComputedStyle(document.querySelector('.wrap')).maxWidth]);

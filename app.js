@@ -2,7 +2,7 @@
 (() => {
 // 調整用の値はここに集める
 const CONFIG = {
-  defaults: {deck:'toeic300-basic', dir:'e2j', count:20, limit:0, speak:false, example:'ng', newPerDay:10},
+  defaults: {deck:'toeic300-basic', dir:'e2j', count:20, limit:0, speak:false, example:'ng', newPerDay:10, theme:'auto', icon:'indigo'},
   // 設定の選択肢。[値, 表示]。ホームのチップは押すたびに次の値へ回る
   options: {
     dir:   [['e2j', '英→日'], ['j2e', '日→英'], ['mix', 'ミックス']],
@@ -12,7 +12,13 @@ const CONFIG = {
     // 例文を出す場面。出したときは自動で次へ進まず、タップ / Enter を待つ（読む時間を取る）
     example: [['ng', '間違えたとき'], ['all', '毎回'], ['off', '出さない']],
     newPerDay: [[5, '5語'], [10, '10語'], [20, '20語'], [0, '出さない']], // 「今日の復習」に入れる新しい語の 1 日の上限（デッキごと）
+    theme: [['auto', '端末に合わせる'], ['light', 'ライト'], ['dark', 'ダーク']],
+    icon:  [['indigo', '藍'], ['blue', '青'], ['green', '緑'], ['red', '赤'], ['orange', '橙'], ['black', '黒']],
   },
+  // ホーム画面のアイコンの色。[地の色, 下線の色]。icons/apple-touch-icon-<名前>.png は tools/make-icons.js でここから作る（藍は apple-touch-icon.png）
+  iconColors: {indigo: ['#4f46e5', '#a5b4fc'], blue: ['#0369a1', '#7dd3fc'], green: ['#047857', '#6ee7b7'], red: ['#be123c', '#fda4af'], orange: ['#c2410c', '#fdba74'], black: ['#1f2937', '#9ca3af']},
+  // 画面上端（ステータスバー）の色。ライト・ダークのとき
+  themeColor: {light: '#4f46e5', dark: '#0f1115'},
   nextDelayOk: 380,    // 正解後、次の問題へ進むまで（ms）
   nextDelayNg: 1800,   // 不正解後、次の問題へ進むまで（ms）
   tapGuard: 250,       // 回答直後のタップを「次へ」と取り違えない猶予（ms）
@@ -398,7 +404,16 @@ const CHIPS = {
   limit: () => settings.limit ? '制限 ' + optLabel('limit') : '制限なし',
 };
 const CHIP_NAME = {dir: '出題', count: '問題数', limit: '制限時間'};
+// 見た目の設定を画面に反映する。ライト・ダークは <html data-theme>（端末に合わせるときは付けない。
+// 読み込み直後のちらつきは index.html の先頭で同じことをして防ぐ）。アイコンは iOS が「ホーム画面に追加」のときに読む apple-touch-icon を差し替える
+function applyLook() {
+  const t = settings.theme, root = document.documentElement;
+  if (t === 'auto') delete root.dataset.theme; else root.dataset.theme = t;
+  document.querySelectorAll('meta[name="theme-color"]').forEach(m => { m.content = CONFIG.themeColor[t === 'auto' ? m.dataset.scheme : t]; });
+  $('link[rel="apple-touch-icon"]').href = settings.icon === 'indigo' ? 'icons/apple-touch-icon.png' : `icons/apple-touch-icon-${settings.icon}.png`;
+}
 function renderHome() {
+  applyLook();
   document.querySelectorAll('.seg').forEach(seg => {
     const key = seg.dataset.key;
     seg.querySelectorAll('button').forEach(b => { const on = String(settings[key]) === b.dataset.val; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); });
@@ -445,6 +460,7 @@ document.querySelectorAll('.seg').forEach(seg => {
   const key = seg.dataset.key;
   for (const [v, label] of CONFIG.options[key]) {
     const b = document.createElement('button'); b.dataset.val = String(v); b.textContent = label;
+    if (key === 'icon') b.style.setProperty('--swatch', CONFIG.iconColors[v][0]); // 色見本（style.css の ::before）
     b.addEventListener('click', () => { settings[key] = v; store.set('settings', settings); renderHome(); });
     seg.appendChild(b);
   }
@@ -1152,6 +1168,10 @@ window.addEventListener('appinstalled', () => { installEvt = null; $('#installBa
 $('#installBtn').onclick = () => { if (!installEvt) return; installEvt.prompt(); installEvt = null; $('#installBtn').hidden = true; };
 $('#installClose').onclick = () => { store.set('installHintClosed', true); $('#installBar').hidden = true; };
 showInstallHint();
+// アイコンの色は「ホーム画面に追加」するときに決まる。追加した後のアイコンは iOS が持っていて、ページからは変えられない
+$('#iconNote').textContent = standalone
+  ? 'ホーム画面のアイコンは、追加したときの色のままです。色を変えるには、学習記録を書き出してから Safari で色を選んでホーム画面に追加し直し、新しいアプリで読み込んでください（アプリを削除すると、その中の記録も消えます）。'
+  : 'iPhone・iPad で、この後「ホーム画面に追加」したときのアイコンの色です。追加済みのアイコンは変わりません。';
 
 /* ---------- ホーム画面アプリ（service worker） ---------- */
 // file:// では登録できない（失敗しても普通に動く）。更新の確認と差し替えは sw.js 側
