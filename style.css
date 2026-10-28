@@ -178,3 +178,8 @@ dialog.sheet[open]{display:flex}
 .trow .tb i{display:block;background:var(--accent);border-radius:2px 2px 0 0;min-height:0}
 .trow .tb i.none{height:0}
 .trow .tv{text-align:right;font-variant-numeric:tabular-nums;font-weight:600;align-self:center}
+/* ホーム画面に追加する案内（#19） */
+.install-bar{background:var(--accent-2);border:1px solid var(--accent);border-radius:12px;padding:10px 12px;margin-bottom:12px;font-size:14px}
+.install-bar p{margin:0;line-height:1.6}
+.install-bar b{display:block;font-weight:700}
+.install-actions{display:flex;justify-content:flex-end;gap:6px;margin-top:6px}
