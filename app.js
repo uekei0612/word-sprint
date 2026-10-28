@@ -106,6 +106,12 @@ const CHECK = {
     }
     return {value, ok};
   },
+  // 出題しない語（#9）。単語＋意味のキーの配列
+  suspended(v) {
+    if (!Array.isArray(v)) return {value: [], ok: false};
+    const value = v.filter(k => typeof k === 'string' && k.includes('\u0001'));
+    return {value: [...new Set(value)], ok: value.length === v.length};
+  },
 };
 // 読み込んで検証する。壊れていたら元の文字列を broken.<キー>.<時刻> に退避してから、直した値で保存し直す
 // （退避せずに動かすと、次の保存で壊れたデータごと上書きされて取り戻せなくなる）
@@ -150,6 +156,10 @@ migrateV1();
 const settings = Object.assign({}, CONFIG.defaults, load('settings', {}));
 let stats = load('stats', {});
 let customDecks = load('decks', null);
+// 出題しない語（覚えた語を外す。Anki の一時停止）。単語＋意味で持ち、その語を含むどのデッキでも外す。
+// 出題・今日の復習・振り返りから除くが、誤答の選択肢には使い続ける。学習記録はそのまま残す
+let suspended = new Set(load('suspended', []));
+const saveSuspended = () => store.set('suspended', [...suspended]);
 // 学習記録の保存。ほかのタブが書いた分を消さないよう、変えた語（keys）だけを最新の保存内容に重ねる。
 // keys を省くと全体を書く（全消去のとき）
 function saveStats(keys) {
@@ -173,7 +183,10 @@ if (settings.deck === 'toeic') settings.deck = 'toeic300-core'; // 旧「TOEIC�
 const canSpeak = 'speechSynthesis' in window;
 
 const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.random() * (i + 1) | 0; [a[i], a[j]] = [a[j], a[i]]; } return a; };
-const usable = d => d && d.words.length >= 4;
+const isOut = it => suspended.has(wKey(it));
+const active = words => words.filter(it => !isOut(it));
+// 4 択を作れるデッキ。出題しない語を除いて 4 語以上（外すときもこれを割らないようにする）
+const usable = d => !!d && active(d.words).length >= 4;
 // どのデッキにも無くなった記録（内蔵デッキで意味の書き方を変えた語など）を、今の書き方の記録へ移す。
 // 記録のキーは「単語＋意味」なので、そのままだと記録が外れる。内蔵デッキでのその単語の意味が
 // 1 つに決まるときだけ移し、両方に記録があれば回数を足す。移したキーを返す
@@ -276,6 +289,7 @@ function isSlow(ms) {
 // 今日の分（今のデッキ・今の出題方向）。復習は予定日を過ぎた順、新しい語はデッキの並び順で 1 日の上限まで。
 // 1 語につき 1 枚（ミックスで同じ語を両方向に出さない）
 function todayQueue(words) {
+  words = active(words);
   const t = today(), dirs = dirsFor(), due = [], fresh = []; let newDone = 0, tomorrow = 0;
   for (const it of words) {
     let pick = null, freshDir = null, next = false;
@@ -297,11 +311,12 @@ function todayQueue(words) {
 }
 
 /* ---------- home ---------- */
-// 今の出題方向（ミックスは両方向）での集計。定着は選んだ方向すべてで定着した語。
+// 今の出題方向（ミックスは両方向）での集計。出題しない語は数えない（out にその数、n に残りの語数）。定着は選んだ方向すべてで定着した語。
 // 振り返り（weak）はカード（{it, dir}）で、リーチ → 印あり → 誤答あり の順、同じ中では重みの大きい順。
 // ミックスでは 1 語につき 1 枚。leech・unsure・slow は印ごとの語数
 const mastered = s => !!s && srsOf(s).b >= SRS.masterBox;
 function deckStats(words) {
+  const out = words.length - (words = active(words)).length;
   let seen = 0, master = 0, c = 0, w = 0, leech = 0, unsure = 0, slow = 0; const weak = [], dirs = dirsFor();
   for (const it of words) {
     const ss = dirs.map(dir => stats[sKey(it, dir)]); if (!ss.some(Boolean)) continue;
@@ -316,7 +331,7 @@ function deckStats(words) {
     if (bad.length) weak.push(bad.reduce((a, b) => b.rk > a.rk || (b.rk === a.rk && b.wt > a.wt) ? b : a));
   }
   weak.sort((a, b) => b.rk - a.rk || b.wt - a.wt);
-  return {seen, master, c, w, leech, unsure, slow, weak: weak.map(({it, dir}) => ({it, dir}))};
+  return {seen, master, c, w, leech, unsure, slow, out, n: words.length, weak: weak.map(({it, dir}) => ({it, dir}))};
 }
 // デッキ一覧（ホーム）。内蔵デッキは group の順、自作デッキは最後に並べる。押すとその場で選ぶ。
 // スクロールを減らすため見出しは置かず、1 つのタイルの並びにする（見出しごとに行の空きが出る）
@@ -328,26 +343,26 @@ function renderDecks(cur) {
   if (!groups.has('自作デッキ')) groups.set('自作デッキ', []);
   for (const [g, list] of groups) {
     for (const d of list) {
-      const st = deckStats(d.words), usable = d.words.length >= 4;
+      const st = deckStats(d.words), ok = usable(d);
       // 選ぶボタンと編集ボタンは入れ子にせず、行の中に並べる
       const row = document.createElement('div'); row.className = 'deck-row';
       const el = document.createElement('button');
-      el.className = 'deck' + (d.id === cur.id ? ' on' : '') + (usable ? '' : ' off') + (d.builtin ? '' : ' has-edit');
+      el.className = 'deck' + (d.id === cur.id ? ' on' : '') + (ok ? '' : ' off') + (d.builtin ? '' : ' has-edit');
       if (d.id === cur.id) el.setAttribute('aria-current', 'true');
       el.innerHTML = '<span class="dn"></span><span class="dd"></span><span class="dm"></span><span class="bar"><i></i></span>';
       row.appendChild(el);
       el.querySelector('.dn').textContent = d.name;
       // タイルは 1 行に収めるため「目安。特徴」の目安だけを出す（全文は上のカードと title に出る）
-      el.querySelector('.dd').textContent = d.builtin ? d.desc.split('。')[0].replace(/の目安$/, '') : (usable ? 'マイデッキ' : '4語以上で使えます');
+      el.querySelector('.dd').textContent = d.builtin ? d.desc.split('。')[0].replace(/の目安$/, '') : (ok ? 'マイデッキ' : '4語以上で使えます');
       if (d.builtin) el.title = d.desc;
-      el.querySelector('.dm').textContent = `${d.words.length}語 · 定着 ${st.master}`;
-      el.querySelector('.bar>i').style.width = (d.words.length ? st.master / d.words.length * 100 : 0) + '%';
+      el.querySelector('.dm').textContent = `${st.n}語 · 定着 ${st.master}${st.out ? ` · 外す ${st.out}` : ''}`;
+      el.querySelector('.bar>i').style.width = (st.n ? st.master / st.n * 100 : 0) + '%';
       if (!d.builtin) {
         const e = document.createElement('button'); e.className = 'edit'; e.textContent = '✎'; e.setAttribute('aria-label', d.name + 'を編集');
         e.onclick = ev => { ev.stopPropagation(); openEditor(d.id); };
         row.appendChild(e);
       }
-      const pick = () => { if (!usable) { openEditor(d.id); return; } settings.deck = d.id; store.set('settings', settings); renderHome(); };
+      const pick = () => { if (!ok) { openEditor(d.id); return; } settings.deck = d.id; store.set('settings', settings); renderHome(); };
       el.onclick = pick;
       grid.appendChild(row);
     }
@@ -373,14 +388,15 @@ function renderHome() {
     seg.querySelectorAll('button').forEach(b => { const on = String(settings[key]) === b.dataset.val; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); });
   });
   const cur = curDeck(); renderDecks(cur);
-  const {seen, master, c, w, weak, leech, unsure, slow} = deckStats(cur.words);
+  const {seen, master, c, w, weak, leech, unsure, slow, out, n: total} = deckStats(cur.words);
   $('#curName').textContent = cur.name;
   $('#curDesc').textContent = cur.builtin ? cur.desc : 'マイデッキ';
-  $('#curStats').textContent = `出題 ${seen}/${cur.words.length} · 定着 ${master} · 正答率 ${c + w ? Math.round(c / (c + w) * 100) + '%' : '—'}`;
-  $('#curBar').style.width = master / cur.words.length * 100 + '%';
+  $('#curStats').textContent = `出題 ${seen}/${total} · 定着 ${master} · 正答率 ${c + w ? Math.round(c / (c + w) * 100) + '%' : '—'}`;
+  $('#curBar').style.width = master / total * 100 + '%';
+  $('#suspBtn').hidden = !out; $('#suspBtn').textContent = `出題しない語 ${out}`;
   const marks = [[leech, 'リーチ'], [unsure, '自信なし'], [slow, '迷った']].filter(([n]) => n).map(([n, l]) => `${l} ${n}`);
   $('#curReview').hidden = !marks.length; $('#curReview').textContent = '振り返り：' + marks.join(' · ');
-  const n = settings.count ? Math.min(settings.count, cur.words.length) : cur.words.length;
+  const n = settings.count ? Math.min(settings.count, total) : total;
   $('#startBtn').textContent = `スタート（${n}問）`;
   // 今日の分があればそれを主のボタンにし、無ければ「完了」と明日の予定を出してスタートを主にする
   const tq = todayQueue(cur.words), tn = tq.review.length + tq.add.length, tb = $('#todayBtn');
@@ -417,7 +433,7 @@ document.querySelectorAll('.seg').forEach(seg => {
     seg.appendChild(b);
   }
 });
-const startNew = () => start(sample(deck(), settings.count));
+const startNew = () => start(sample(active(deck()), settings.count));
 $('#startBtn').onclick = startNew;
 $('#resetBtn').onclick = () => { if (confirm('学習記録（正誤履歴）をすべて消去しますか？')) { stats = {}; saveStats(); renderHome(); } };
 
@@ -465,7 +481,7 @@ function render(keep) {
     box.appendChild(b);
   });
   $('#tapNext').hidden = true; $('#undoBox').hidden = true; $('#example').hidden = true;
-  Q.unsure = false; setUnsure();
+  Q.unsure = false; setUnsure(); $('#outBtn').hidden = true;
   $('#qcard').classList.remove('ok', 'ng');
   $('#streak').textContent = Q.streak >= CONFIG.streakShow ? `🔥 ${Q.streak}連続` : '';
   $('#score').textContent = `正解 ${Q.ok}`;
@@ -527,6 +543,7 @@ function answer(i) {
   $('#score').textContent = `正解 ${Q.ok}`;
   if (settings.speak && dir === 'j2e') speak(it.w);
   $('#undoBox').hidden = !Q.undo;
+  Q.answeredOk = ok; setOut();
   // 例文を出したときは読み終わるまで待つ。出さないときは今までどおり自動で次へ
   if (showExample(it, ok, stats[k])) $('#tapNext').hidden = false;
   else if (ok) Q.to = setTimeout(next, CONFIG.nextDelayOk);
@@ -620,7 +637,7 @@ function finish() {
   show('result');
 }
 $('#quiz').addEventListener('click', e => {
-  if (e.target.closest('#quitBtn, #speakBtn, #undoBtn, #exSpeak, #unsureBtn')) return;
+  if (e.target.closest('#quitBtn, #speakBtn, #undoBtn, #exSpeak, #unsureBtn, #outBtn')) return;
   if (Q && Q.locked && performance.now() - Q.lockedAt > CONFIG.tapGuard) next();
 });
 // 別アプリ・別タブにいた間は回答時間に数えない（戻った瞬間に時間切れにしない）
@@ -649,6 +666,41 @@ function toggleUnsure() {
   clearTimeout(Q.to); $('#tapNext').hidden = false; // 押したら自動で進まず、タップ / Enter を待つ
 }
 $('#unsureBtn').onclick = toggleUnsure;
+// 外すと 4 択を作れなくなるデッキがあれば外さない（その語を含み、今は使えるデッキで、残りが 4 語を割る）
+const canOut = it => allDecks().every(d => !usable(d) || !d.words.some(x => wKey(x) === wKey(it)) || active(d.words).length > 4);
+// 「出題しない」。正解した後に出し、押すとその語を外す（もう一度押すと戻す）。押したら自動で進まない
+function setOut() {
+  const b = $('#outBtn'), on = isOut(Q.q.it);
+  b.hidden = !on && !(Q.answeredOk && canOut(Q.q.it)); b.setAttribute('aria-pressed', on); b.classList.toggle('on', on);
+}
+function toggleOut() {
+  if (!Q || $('#quiz').hidden || !Q.locked || $('#outBtn').hidden) return;
+  const it = Q.q.it, k = wKey(it);
+  if (suspended.has(k)) suspended.delete(k);
+  else {
+    suspended.add(k);
+    // このクイズで後に出す予定の出し直しも取り除く
+    for (let j = Q.items.length - 1; j > Q.i; j--) if (Q.re[j] && Q.items[j].it === it) { Q.items.splice(j, 1); Q.re.splice(j, 1); }
+  }
+  saveSuspended(); setOut();
+  $('#announce').textContent = isOut(it) ? `${it.w} を出題しない語にしました。ホームの「出題しない語」から戻せます` : `${it.w} を出題に戻しました`;
+  clearTimeout(Q.to); $('#tapNext').hidden = false;
+}
+$('#outBtn').onclick = toggleOut;
+// 出題しない語の一覧（今のデッキ）。ここから出題に戻す
+function renderSuspended() {
+  const ul = $('#suspList'), list = curDeck().words.filter(isOut); ul.innerHTML = '';
+  for (const it of list) {
+    const li = document.createElement('li'); li.innerHTML = '<b lang="en"></b><span></span><button class="btn small">戻す</button>';
+    li.children[0].textContent = it.w; li.children[1].textContent = it.m;
+    li.children[2].setAttribute('aria-label', it.w + 'を出題に戻す');
+    li.children[2].onclick = () => { suspended.delete(wKey(it)); saveSuspended(); renderHome(); if (!renderSuspended()) $('#suspDlg').close(); };
+    ul.appendChild(li);
+  }
+  $('#suspTitle').textContent = `出題しない語（${list.length}）`;
+  return list.length;
+}
+$('#suspBtn').onclick = () => { renderSuspended(); $('#suspDlg').showModal(); };
 $('#speakBtn').onclick = () => Q && speak(Q.q.it.w);
 $('#exSpeak').onclick = () => Q && speak(Q.q.it.e);
 $('#retryMissed').onclick = () => { if (Q) start(shuffle(Q.missed.slice())); };
@@ -795,6 +847,7 @@ document.addEventListener('keydown', e => {
     else if (e.key === 'Escape') quit();
     else if (e.key === 'z' || e.key === 'Z' || e.key === 'Backspace') { undo(); e.preventDefault(); }
     else if (e.key === 'f' || e.key === 'F') { toggleUnsure(); e.preventDefault(); }
+    else if (e.key === 'x' || e.key === 'X') { toggleOut(); e.preventDefault(); }
   } else if (e.key === 'Enter' && e.target.closest && e.target.closest('button, a')) {
     // フォーカス中のボタンの Enter はそのボタンに任せる（奪ってスタートしない）
   } else if (!$('#home').hidden && e.key === 'Enter') { startNew(); e.preventDefault(); }
@@ -811,6 +864,7 @@ window.addEventListener('storage', e => {
   try { if (e.newValue != null) v = CHECK[k](JSON.parse(e.newValue)).value; } catch (err) { return; }
   if (k === 'stats') stats = v || {};
   else if (k === 'decks') customDecks = v || [];
+  else if (k === 'suspended') suspended = new Set(v || []);
   else Object.assign(settings, CONFIG.defaults, v || {});
   if (!$('#home').hidden) renderHome();
 });
@@ -821,7 +875,7 @@ $('#saveErrClose').onclick = () => { $('#saveErrBar').hidden = true; };
 const BACKUP_FORMAT = 2; // 保存形式を変えたら上げ、readBackup で古い版も読めるようにする（2：記録を出題方向ごとに分けた）
 const ymd = d => [d.getFullYear(), d.getMonth() + 1, d.getDate()].map(n => String(n).padStart(2, '0')).join('');
 async function exportBackup() {
-  const data = {app: 'word-sprint', format: BACKUP_FORMAT, exportedAt: new Date().toISOString(), settings, stats, decks: customDecks};
+  const data = {app: 'word-sprint', format: BACKUP_FORMAT, exportedAt: new Date().toISOString(), settings, stats, decks: customDecks, suspended: [...suspended]};
   const name = `word-sprint-backup-${ymd(new Date())}.json`;
   const blob = new Blob([JSON.stringify(data)], {type: 'application/json'});
   // iPhone は共有シートから「ファイルに保存」できる。共有できない環境ではダウンロードにする
@@ -833,14 +887,15 @@ async function exportBackup() {
   a.href = URL.createObjectURL(blob); a.download = name; a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
-// 読み込んだファイルを検証して {settings, stats, decks, exportedAt} にする。Word Sprint の記録でなければ null
+// 読み込んだファイルを検証して {settings, stats, decks, suspended, exportedAt} にする（出題しない語は無くてもよい）。Word Sprint の記録でなければ null
 function readBackup(text) {
   let v; try { v = JSON.parse(text); } catch (e) { return null; }
   if (!isObj(v) || v.app !== 'word-sprint' || !(v.format >= 1 && v.format <= BACKUP_FORMAT)) return null;
   const st = CHECK.stats(v.stats).value;
-  return {settings: CHECK.settings(v.settings).value, stats: v.format === 1 ? splitStats(st) : st, decks: CHECK.decks(v.decks).value, exportedAt: v.exportedAt};
+  return {settings: CHECK.settings(v.settings).value, stats: v.format === 1 ? splitStats(st) : st, decks: CHECK.decks(v.decks).value,
+    suspended: CHECK.suspended(v.suspended || []).value, exportedAt: v.exportedAt};
 }
-// 統合：単語ごとに回答数の多い方（同数なら新しい方）を残す。自作デッキは足し、中身が同じものは重複させない
+// 統合：単語ごとに回答数の多い方（同数なら新しい方）を残す。自作デッキは足し、中身が同じものは重複させない。出題しない語は合わせる
 function mergeBackup(b) {
   const merged = {...stats};
   for (const [k, s] of Object.entries(b.stats)) {
@@ -848,6 +903,7 @@ function mergeBackup(b) {
     if (n > m || (n === m && (s.t || 0) > (cur.t || 0))) merged[k] = s;
   }
   stats = merged;
+  for (const k of b.suspended) suspended.add(k);
   const sameWords = (a, d) => JSON.stringify(a.words.map(toLine)) === JSON.stringify(d.words.map(toLine));
   b.decks.forEach((d, i) => {
     if (customDecks.some(x => sameWords(x, d))) return;
@@ -856,7 +912,7 @@ function mergeBackup(b) {
   });
 }
 function replaceBackup(b) {
-  stats = b.stats; customDecks = b.decks;
+  stats = b.stats; customDecks = b.decks; suspended = new Set(b.suspended);
   for (const k of Object.keys(settings)) delete settings[k];
   Object.assign(settings, CONFIG.defaults, b.settings);
 }
@@ -877,7 +933,7 @@ function applyImport(mode) {
   (mode === 'merge' ? mergeBackup : replaceBackup)(pendingImport);
   moveStaleStats(); // 古い版で書き出したファイルには、意味の書き方を変える前の記録が入っている
   pendingImport = null; $('#importDlg').close();
-  saveStats(); saveDecks(); store.set('settings', settings);
+  saveStats(); saveDecks(); saveSuspended(); store.set('settings', settings);
   renderHome(); show('home');
   alert('学習記録を読み込みました。');
 }
