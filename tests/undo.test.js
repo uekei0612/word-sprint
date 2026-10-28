@@ -16,7 +16,7 @@ run(async () => {
   // 既存記録あり：2 問正解して連続を作り、3 問目で押し間違えて取り消す
   await load({[K('gamma', 'う')]: {c: 2, w: 1, t: 5}});
   await p.click('#startBtn'); await sleep(80);
-  for (let r = 0; r < 2; r++) { await p.click(`.choice:nth-child(${await idx(true) + 1})`); await sleep(500); }
+  for (let r = 0; r < 2; r++) { await p.click(`.choice:nth-child(${await idx(true) + 1})`); await sleep(800); }
   const before = await snap(); const w3 = await cur(); const o3 = await order();
   await p.click(`.choice:nth-child(${await idx(false) + 1})`); await sleep(80);
   check('間違えると取り消しボタンが出る', await p.$eval('#undoBox', e => !e.hidden));
@@ -34,7 +34,7 @@ run(async () => {
   await p.click(`.choice:nth-child(${await idx(true) + 1})`); await sleep(80);
   const st = await p.evaluate(P => JSON.parse(localStorage.getItem(P + 'stats')), P);
   check('答え直した結果が記録される（正解が 1 増え、誤答は増えない）', st[k3].c === pre.c + 1 && st[k3].w === pre.w, JSON.stringify([pre, st[k3]]));
-  await sleep(500);
+  await sleep(800);
   // 正解では取り消しを出さない／次に進んだら取り消せない（Z キー）
   check('正解のときは取り消しボタンを出さない', await p.$eval('#undoBox', e => e.hidden));
   await p.click(`.choice:nth-child(${await idx(false) + 1})`); await sleep(80);
@@ -53,7 +53,7 @@ run(async () => {
   // 結果画面の間違えた単語に、取り消した語が残らない
   await p.evaluate(P => localStorage.setItem(P + 'settings', JSON.stringify({deck: 'c1', dir: 'e2j', count: 0, limit: 0})), P);
   await p.goto(INDEX); await p.click('#startBtn'); await sleep(80);
-  for (let r = 0; r < 5; r++) { await p.click(`.choice:nth-child(${await idx(false) + 1})`); await sleep(50); await p.click('#undoBtn'); await sleep(50); await p.click(`.choice:nth-child(${await idx(true) + 1})`); await sleep(500); }
+  for (let r = 0; r < 5; r++) { await p.click(`.choice:nth-child(${await idx(false) + 1})`); await sleep(50); await p.click('#undoBtn'); await sleep(50); await p.click(`.choice:nth-child(${await idx(true) + 1})`); await sleep(800); }
   check('全問で押し間違え→取り消し→正解なら、結果は全問正解・間違えた単語なし', (await p.$eval('#rScore', e => e.textContent)) === '5 / 5' && await p.$eval('#missedCard', e => e.hidden));
   check('ページのエラーなし', errs.length === 0, errs.join(';'));
   await b.close();

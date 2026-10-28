@@ -12,7 +12,7 @@ run(async () => {
   const cdp = await p.createCDPSession(); await cdp.send('Page.setDownloadBehavior', {behavior: 'allow', downloadPath: DL});
   await p.goto(BASE);
   const deckA = {id: 'c1', name: '自作A', words: [{w: 'well, then', p: '', m: 'さて'}, {w: 'he said "hi"', p: '', m: 'x'}, {w: 'apple', p: '', m: 'りんご'}, {w: 'pear', p: '', m: '梨'}]};
-  const orig = {stats: {[K('family', '家族')]: {c: 3, w: 1, t: 100}, [K('apple', 'りんご')]: {c: 1, w: 2, t: 200}}, decks: [deckA], settings: {deck: 'c1', dir: 'j2e', count: 10, limit: 3, speak: true, example: 'all', newPerDay: 20, theme: 'dark', icon: 'red'}};
+  const orig = {stats: {[K('family', '家族')]: {c: 3, w: 1, t: 100}, [K('apple', 'りんご')]: {c: 1, w: 2, t: 200}}, decks: [deckA], settings: {deck: 'c1', dir: 'j2e', count: 10, limit: 3, speak: true, example: 'all', okDelay: 1000, newPerDay: 20, theme: 'dark', icon: 'red'}};
   await seed(p, orig); await p.goto(BASE); await sleep(300);
 
   // 1. 書き出し
@@ -30,7 +30,7 @@ run(async () => {
   await p.click('#importReplace'); await sleep(400);
   const after = await snap(p);
   check('書き出し → 全消去 → 置き換えで、記録・自作デッキ・設定が完全に元に戻る', JSON.stringify(after.stats) === JSON.stringify(orig.stats) && JSON.stringify(after.decks) === JSON.stringify(orig.decks) && JSON.stringify(after.settings) === JSON.stringify(orig.settings), JSON.stringify(after.settings));
-  check('画面にも反映される（自作デッキが選択され、設定ボタンも戻る）', await p.$eval('#curName', e => e.textContent) === '自作A' && JSON.stringify(await p.$$eval('.seg button.on', b => b.map(x => x.textContent))) === '["日→英","10","3秒","オン","毎回","20語","ダーク","赤"]');
+  check('画面にも反映される（自作デッキが選択され、設定ボタンも戻る）', await p.$eval('#curName', e => e.textContent) === '自作A' && JSON.stringify(await p.$$eval('.seg button.on', b => b.map(x => x.textContent))) === '["日→英","10","3秒","オン","毎回","1秒","20語","ダーク","赤"]');
 
   // 3. 統合
   const deckB = {id: 'c1', name: '別物B', words: [{w: 'dog', p: '', m: '犬'}, {w: 'cat', p: '', m: '猫'}, {w: 'cow', p: '', m: '牛'}, {w: 'pig', p: '', m: '豚'}]};
