@@ -1,4 +1,4 @@
-// 正解後に次の問題へ自動で進むまでの時間（⚙「正解の後」）：既定 0.6 秒・選んだ時間で進む・タップですぐ進む
+// 正解後に次の問題へ自動で進むまでの時間（⚙「正解の後」）：既定 3 秒・選んだ時間で進む・タップですぐ進む
 const {P, sleep, check, launch, fileUrl, run} = require('./lib');
 run(async () => {
   const b = await launch(); const p = await b.newPage(); const errs = [];
@@ -25,10 +25,10 @@ run(async () => {
   };
 
   await load();
-  check('既定は 0.6 秒で、⚙ にその選択が出る', await p.$eval('.seg[data-key="okDelay"] button.on', e => e.textContent) === '0.6秒');
+  check('既定は 3 秒で、⚙ にその選択が出る', await p.$eval('.seg[data-key="okDelay"] button.on', e => e.textContent) === '3秒');
   await p.click('#startBtn'); await sleep(80);
   let ms = await answer();
-  check('既定では正解の約 0.6 秒後に次へ進む', ms >= 550 && ms < 1100, ms + 'ms');
+  check('既定では正解の約 3 秒後に次へ進む', ms >= 2950 && ms < 3600, ms + 'ms');
   await p.goto(fileUrl()); await sleep(100); // ホームへ（中断すると結果画面になることがある）
 
   await p.click('#settingsBtn'); await sleep(80); await p.click('.seg[data-key="okDelay"] button[data-val="1500"]'); await sleep(40); await p.click('#settingsDlg [data-close]'); await sleep(60);
@@ -44,12 +44,12 @@ run(async () => {
     check('待たずにタップすると、すぐ次へ進む', (await counter()) !== before); }
   await p.goto(fileUrl()); await sleep(100); // ホームへ（中断すると結果画面になることがある）
 
-  await load({okDelay: 400});
+  await load({okDelay: 600});
   await p.click('#startBtn'); await sleep(80);
   ms = await answer();
-  check('0.4 秒を選ぶと、正解の約 0.4 秒後に次へ進む', ms >= 350 && ms < 900, ms + 'ms');
+  check('0.6 秒を選ぶと、正解の約 0.6 秒後に次へ進む', ms >= 550 && ms < 1100, ms + 'ms');
   await load({okDelay: 380});
-  check('選択肢に無い値（以前の 0.38 秒など）は既定の 0.6 秒に戻す', await p.$eval('.seg[data-key="okDelay"] button.on', e => e.textContent) === '0.6秒');
+  check('選択肢に無い値（以前の 0.38 秒など）は既定の 3 秒に戻す', await p.$eval('.seg[data-key="okDelay"] button.on', e => e.textContent) === '3秒');
 
   check('ページのエラーなし', errs.length === 0, errs.join(';'));
   await b.close();

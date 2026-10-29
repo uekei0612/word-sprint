@@ -13,7 +13,7 @@ run(async () => {
     {w: 'plain', p: 'adj', m: '明白な', },
   ];
   const load = async (set) => { await p.goto(INDEX); await p.evaluate((P, words, set) => { localStorage.clear();
-    localStorage.setItem(P + 'decks', JSON.stringify([{id: 'c1', name: 'T', words}])); localStorage.setItem(P + 'settings', JSON.stringify({deck: 'c1', dir: 'e2j', count: 0, ...set})); }, P, words, set);
+    localStorage.setItem(P + 'decks', JSON.stringify([{id: 'c1', name: 'T', words}])); localStorage.setItem(P + 'settings', JSON.stringify({deck: 'c1', dir: 'e2j', count: 0, okDelay: 600, ...set})); }, P, words, set);
     await p.goto(INDEX); await sleep(100); await p.click('#startBtn'); await sleep(80); };
   const byW = Object.fromEntries(words.map(x => [x.w, x]));
   const cur = () => p.$eval('#prompt', e => e.textContent);
@@ -84,7 +84,7 @@ run(async () => {
 
   // 内蔵デッキ：例文が読めている
   const n = await p.evaluate(() => window.WORD_SPRINT_DECKS.find(d => d.id === 'toeic300-basic').raw.trim().split('\n').length);
-  await p.evaluate(P => { localStorage.clear(); localStorage.setItem(P + 'settings', JSON.stringify({deck: 'toeic300-basic', dir: 'j2e', count: 0, example: 'all'})); }, P);
+  await p.evaluate(P => { localStorage.clear(); localStorage.setItem(P + 'settings', JSON.stringify({deck: 'toeic300-basic', dir: 'j2e', count: 0, okDelay: 600, example: 'all'})); }, P);
   await p.goto(INDEX); await sleep(100); await p.click('#startBtn'); await sleep(80);
   await p.click('.choice'); await sleep(80); e = await ex();
   check(`内蔵デッキ（TOEIC 300・基礎 ${n} 語）で例文と和訳が出て、強調もある`, e.shown && e.en.length > 10 && e.ja.length > 3 && e.mark.length === 1, JSON.stringify(e));
