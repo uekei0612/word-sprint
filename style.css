@@ -187,3 +187,10 @@ dialog.sheet[open]{display:flex}
 .install-bar p{margin:0;line-height:1.6}
 .install-bar b{display:block;font-weight:700}
 .install-actions{display:flex;justify-content:flex-end;gap:6px;margin-top:6px}
+
+/* 回答画面の補助ボタン：親指で押しやすい大きさに。絵文字は使わず、アイコンは線の SVG（文字色に従う） */
+.unsure{display:flex;flex-wrap:wrap;justify-content:center;gap:8px}
+.unsure .chip{font-size:15px;min-height:50px;padding:0 20px}
+.unsure .chip+.chip{margin-left:0}
+.speak svg,.icon-chip svg{display:block;margin:auto}
+.icon-chip{min-width:48px;min-height:48px;padding:0}

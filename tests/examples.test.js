@@ -40,7 +40,7 @@ run(async () => {
   await sleep(2400);
   check('例文を出したときは自動で次へ進まない（2.4 秒待っても同じ問題）', (await cur()) === w && (await ex()).shown);
   await p.click('#exSpeak').catch(() => {}); await sleep(300);
-  check('例文の 🔊 を押しても次へ進まない', (await cur()) === w);
+  check('例文の発音ボタンを押しても次へ進まない', (await cur()) === w);
   await p.click('#undoBtn'); await sleep(80);
   check('取り消すと例文を隠して同じ問題を出し直す', (await cur()) === w && !(await ex()).shown);
   await choose(false); await sleep(300); await p.click('#qcard'); await sleep(80); // tapGuard より後に押す

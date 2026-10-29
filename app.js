@@ -515,7 +515,7 @@ function render(keep) {
   $('#tapNext').hidden = true; $('#undoBox').hidden = true; $('#example').hidden = true;
   Q.unsure = false; setUnsure(); $('#outBtn').hidden = true;
   $('#qcard').classList.remove('ok', 'ng');
-  $('#streak').textContent = Q.streak >= CONFIG.streakShow ? `🔥 ${Q.streak}連続` : '';
+  $('#streak').textContent = Q.streak >= CONFIG.streakShow ? `${Q.streak}連続` : '';
   $('#score').textContent = `正解 ${Q.ok}`;
   $('#speakBtn').hidden = !canSpeak || q.dir !== 'e2j';
   $('#announce').textContent = '';
