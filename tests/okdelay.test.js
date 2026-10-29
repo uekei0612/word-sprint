@@ -42,6 +42,12 @@ run(async () => {
     const before = await counter(); await p.click(`.choice:nth-child(${i + 1})`); await sleep(350);
     await p.click('#prompt'); await sleep(100);
     check('待たずにタップすると、すぐ次へ進む', (await counter()) !== before); }
+  // 余白（カードの外・画面の下の方）をタップしても進む
+  { const w = await p.$eval('#prompt', e => e.textContent);
+    const i = await p.$$eval('.choice', (bs, m) => bs.findIndex(b => b.lastChild.textContent === m), M[w]);
+    const before = await counter(); await p.click(`.choice:nth-child(${i + 1})`); await sleep(350);
+    await p.mouse.click(195, 830); await sleep(100);
+    check('画面の下の余白をタップしても、すぐ次へ進む', (await counter()) !== before); }
   await p.goto(fileUrl()); await sleep(100); // ホームへ（中断すると結果画面になることがある）
 
   await load({okDelay: 600});
