@@ -671,8 +671,9 @@ function finish() {
   $('#retryMissed').hidden = !Q.missed.length;
   show('result');
 }
-$('#quiz').addEventListener('click', e => {
-  if (e.target.closest('#quitBtn, #speakBtn, #undoBtn, #exSpeak, #unsureBtn, #outBtn')) return;
+// 次へ進むタップは画面のどこでも受ける（クイズの外の余白も含む）。ダイアログの中は除く
+document.addEventListener('click', e => {
+  if ($('#quiz').hidden || e.target.closest('#quitBtn, #speakBtn, #undoBtn, #exSpeak, #unsureBtn, #outBtn, dialog, a')) return;
   if (Q && Q.locked && performance.now() - Q.lockedAt > CONFIG.tapGuard) next();
 });
 // 別アプリ・別タブにいた間は回答時間に数えない（戻った瞬間に時間切れにしない）
