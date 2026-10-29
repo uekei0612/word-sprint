@@ -6,7 +6,7 @@ run(async () => {
   await p.setViewport({width: 390, height: 844});
   const words = [{w: 'alpha', p: '', m: 'あ'}, {w: 'beta', p: '', m: 'い'}, {w: 'gamma', p: '', m: 'う'}, {w: 'delta', p: '', m: 'え'}, {w: 'eps', p: '', m: 'お'}];
   const load = async (stats) => { await p.goto(INDEX); await p.evaluate((P, words, stats) => { localStorage.clear();
-    localStorage.setItem(P + 'decks', JSON.stringify([{id: 'c1', name: 'T', words}])); localStorage.setItem(P + 'settings', JSON.stringify({deck: 'c1', dir: 'e2j', count: 0}));
+    localStorage.setItem(P + 'decks', JSON.stringify([{id: 'c1', name: 'T', words}])); localStorage.setItem(P + 'settings', JSON.stringify({deck: 'c1', dir: 'e2j', count: 0, okDelay: 600}));
     localStorage.setItem(P + 'stats', JSON.stringify(stats)); }, P, words, stats); await p.goto(INDEX); await sleep(100); };
   const M = Object.fromEntries(words.map(x => [x.w, x.m]));
   const cur = () => p.evaluate(() => document.querySelector('#prompt').textContent);
@@ -47,11 +47,11 @@ run(async () => {
   const st2 = await p.evaluate(P => localStorage.getItem(P + 'stats'), P);
   check('Z で取り消すと、記録の無かった語は記録ごと消える', st2 === '{}' && (await cur()) === w1, st2);
   // 時間切れは取り消せない
-  await p.evaluate(P => localStorage.setItem(P + 'settings', JSON.stringify({deck: 'c1', dir: 'e2j', count: 0, limit: 3})), P);
+  await p.evaluate(P => localStorage.setItem(P + 'settings', JSON.stringify({deck: 'c1', dir: 'e2j', count: 0, okDelay: 600, limit: 3})), P);
   await p.goto(INDEX); await p.click('#startBtn'); await sleep(3300);
   check('時間切れでは取り消しボタンを出さない', await p.$eval('#undoBox', e => e.hidden) && await p.$$eval('.choice', bs => bs.every(b => b.disabled)));
   // 結果画面の間違えた単語に、取り消した語が残らない
-  await p.evaluate(P => localStorage.setItem(P + 'settings', JSON.stringify({deck: 'c1', dir: 'e2j', count: 0, limit: 0})), P);
+  await p.evaluate(P => localStorage.setItem(P + 'settings', JSON.stringify({deck: 'c1', dir: 'e2j', count: 0, okDelay: 600, limit: 0})), P);
   await p.goto(INDEX); await p.click('#startBtn'); await sleep(80);
   for (let r = 0; r < 5; r++) { await p.click(`.choice:nth-child(${await idx(false) + 1})`); await sleep(50); await p.click('#undoBtn'); await sleep(50); await p.click(`.choice:nth-child(${await idx(true) + 1})`); await sleep(800); }
   check('全問で押し間違え→取り消し→正解なら、結果は全問正解・間違えた単語なし', (await p.$eval('#rScore', e => e.textContent)) === '5 / 5' && await p.$eval('#missedCard', e => e.hidden));

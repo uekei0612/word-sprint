@@ -13,7 +13,7 @@ run(async () => {
     await p.goto(INDEX); await sleep(100);
   };
   const stats = () => p.evaluate(P => JSON.parse(localStorage.getItem(P + 'stats') || '{}'), P);
-  const setDir = async dir => { await p.evaluate((P, dir) => { const s = JSON.parse(localStorage.getItem(P + 'settings')); s.dir = dir; localStorage.setItem(P + 'settings', JSON.stringify(s)); }, P, dir); await p.goto(INDEX); await sleep(100); };
+  const setDir = async dir => { await p.evaluate((P, dir) => { const s = JSON.parse(localStorage.getItem(P + 'settings')); s.dir = dir; s.okDelay = 600; localStorage.setItem(P + 'settings', JSON.stringify(s)); }, P, dir); await p.goto(INDEX); await sleep(100); };
   const home = () => p.evaluate(() => ({st: document.querySelector('#curStats').textContent, weak: document.querySelector('#weakBtn').hidden ? '' : document.querySelector('#weakBtn').textContent}));
   const deck = [{id: 'c1', name: 'T', words}];
 
@@ -21,7 +21,7 @@ run(async () => {
   const seeded = {};
   for (const x of words) seeded[K(x.w, x.m, 'e2j')] = {c: 5, w: 0, t: 1};
   seeded[K('beta', M.beta, 'j2e')] = {c: 0, w: 3, t: 1};
-  await load(P, {decks: deck, settings: {deck: 'c1', dir: 'e2j', count: 0}, stats: seeded});
+  await load(P, {decks: deck, settings: {deck: 'c1', dir: 'e2j', count: 0, okDelay: 600}, stats: seeded});
   let h = await home();
   check('英→日：英→日の記録だけで集計する（全語が定着・苦手なし）', /出題 6\/6 · 定着 6 · 正答率 100%/.test(h.st) && !h.weak, JSON.stringify(h));
   await setDir('j2e'); h = await home();
@@ -41,7 +41,7 @@ run(async () => {
     st[K(w, M[w], 'j2e')].c === (seeded[K(w, M[w], 'j2e')] || {c: 0}).c + 1 && JSON.stringify(st[K(w, M[w], 'e2j')]) === JSON.stringify(seeded[K(w, M[w], 'e2j')]), JSON.stringify([st[K(w, M[w], 'j2e')], st[K(w, M[w], 'e2j')]]));
 
   // 3. ミックスで全問：同じ語を両方向に出さず、答えた方向のキーに記録する
-  await load(P, {decks: deck, settings: {deck: 'c1', dir: 'mix', count: 0}, stats: {}});
+  await load(P, {decks: deck, settings: {deck: 'c1', dir: 'mix', count: 0, okDelay: 600}, stats: {}});
   await p.click('#startBtn'); await sleep(80);
   const asked = [];
   for (let i = 0; i < 6; i++) {
@@ -56,7 +56,7 @@ run(async () => {
   check('ミックス：出した方向のキーにだけ記録する', Object.keys(st).length === 6 && asked.every(([w, d]) => st[K(w, M[w], d)] && st[K(w, M[w], d)].c === 1), JSON.stringify(Object.keys(st)));
 
   // 4. 前の版（v1）の保存からの写し
-  await load(P1, {decks: deck, settings: {deck: 'c1', dir: 'j2e', count: 0}, stats: {['alpha\u0001' + M.alpha]: {c: 2, w: 1, t: 7}}});
+  await load(P1, {decks: deck, settings: {deck: 'c1', dir: 'j2e', count: 0, okDelay: 600}, stats: {['alpha\u0001' + M.alpha]: {c: 2, w: 1, t: 7}}});
   st = await stats();
   check('v1 の記録は両方向に同じ記録として写る', ['e2j', 'j2e'].every(d => JSON.stringify(st[K('alpha', M.alpha, d)]) === JSON.stringify({c: 2, w: 1, t: 7})) && Object.keys(st).length === 2, JSON.stringify(st));
   check('v1 の設定・自作デッキも写り、v1 の保存はそのまま残る', (await p.$eval('#curName', e => e.textContent)) === 'T' && await p.evaluate(P1 => localStorage.getItem(P1 + 'stats').includes('alpha'), P1));

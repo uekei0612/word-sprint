@@ -2,7 +2,7 @@
 (() => {
 // 調整用の値はここに集める
 const CONFIG = {
-  defaults: {deck:'toeic300-basic', dir:'e2j', count:20, limit:0, speak:false, example:'ng', okDelay:600, newPerDay:10, theme:'auto', icon:'indigo'},
+  defaults: {deck:'toeic300-basic', dir:'e2j', count:20, limit:0, speak:false, example:'ng', okDelay:3000, newPerDay:10, theme:'auto', icon:'indigo'},
   // 設定の選択肢。[値, 表示]。ホームのチップは押すたびに次の値へ回る
   options: {
     dir:   [['e2j', '英→日'], ['j2e', '日→英'], ['mix', 'ミックス']],
@@ -11,7 +11,7 @@ const CONFIG = {
     speak: [[false, 'オフ'], [true, 'オン']],
     // 例文を出す場面。出したときは自動で次へ進まず、タップ / Enter を待つ（読む時間を取る）
     example: [['ng', '間違えたとき'], ['all', '毎回'], ['off', '出さない']],
-    okDelay: [[400, '0.4秒'], [600, '0.6秒'], [1000, '1秒'], [1500, '1.5秒']], // 正解後、次の問題へ自動で進むまで（ms）。タップ / Enter ですぐ進める
+    okDelay: [[600, '0.6秒'], [1000, '1秒'], [1500, '1.5秒'], [3000, '3秒'], [5000, '5秒']], // 正解後、次の問題へ自動で進むまで（ms）。タップ / Enter ですぐ進める
     newPerDay: [[5, '5語'], [10, '10語'], [20, '20語'], [0, '出さない']], // 「今日の復習」に入れる新しい語の 1 日の上限（デッキごと）
     theme: [['auto', '端末に合わせる'], ['light', 'ライト'], ['dark', 'ダーク']],
     icon:  [['indigo', '藍'], ['blue', '青'], ['green', '緑'], ['red', '赤'], ['orange', '橙'], ['black', '黒']],
