@@ -97,7 +97,7 @@ input[type=text]{width:100%;font:inherit;font-size:16px;padding:10px 12px;border
 .choice{display:flex;align-items:center;gap:12px;text-align:left;width:100%;min-height:60px;padding:12px 14px;border-radius:14px;border:1.5px solid var(--line);background:var(--card);color:var(--text);font:inherit;font-size:17px;cursor:pointer;touch-action:manipulation;transition:transform .06s,background .12s,border-color .12s,opacity .12s}
 .choice:active{transform:scale(.98)}
 @media(hover:hover){.choice:not(:disabled):hover{border-color:var(--accent)}}
-.choice:disabled{cursor:default;color:var(--text)}
+.choice:disabled{cursor:default;pointer-events:none;color:var(--text)}
 .num{flex:none;width:26px;height:26px;border-radius:8px;background:var(--accent-2);color:var(--accent);display:grid;place-items:center;font-size:13px;font-weight:700}
 .choice.ok{border-color:var(--ok);background:var(--ok-bg)}
 .choice.ok .num{background:var(--ok);color:var(--on-mark)}
