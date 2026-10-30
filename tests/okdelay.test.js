@@ -42,6 +42,12 @@ run(async () => {
     const before = await counter(); await p.click(`.choice:nth-child(${i + 1})`); await sleep(350);
     await p.click('#prompt'); await sleep(100);
     check('待たずにタップすると、すぐ次へ進む', (await counter()) !== before); }
+  // 回答後の選択肢をタップしても進む（無効化したボタンはクリックを受けないので、下の領域で受ける）
+  { const w = await p.$eval('#prompt', e => e.textContent);
+    const i = await p.$$eval('.choice', (bs, m) => bs.findIndex(b => b.lastChild.textContent === m), M[w]);
+    const before = await counter(); await p.click(`.choice:nth-child(${i + 1})`); await sleep(350);
+    await p.click('.choice:nth-child(1)'); await sleep(100);
+    check('回答後に選択肢のあたりをタップしても、すぐ次へ進む', (await counter()) !== before); }
   // 余白（カードの外・画面の下の方）をタップしても進む
   { const w = await p.$eval('#prompt', e => e.textContent);
     const i = await p.$$eval('.choice', (bs, m) => bs.findIndex(b => b.lastChild.textContent === m), M[w]);
